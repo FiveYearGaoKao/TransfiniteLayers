@@ -1,0 +1,175 @@
+@font-face {
+  font-family: SourceHanSansSC;
+  src: url('./SourceHanSansSC-Regular-2.otf');
+}
+body {
+  background-color: #181818;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  user-select: none;
+  margin: 0px;
+  font-family: 'SourceHanSansSC';
+}
+/*文字类*/
+a {
+  color: blue;
+}
+.text {
+  font-size: 14px;
+  color: #ffffff;
+}
+.bold {
+  font-weight: bold;
+}
+.softcapped {
+  color: #606080;
+  font-weight: bold;
+  text-shadow: 1px 1px #51516b;
+}
+.text-highlight {
+  font-size: 18px;
+  color: #ffffff;
+  text-shadow: 1px 1px #a0a0a0;
+}
+.freeLevel {
+  font-size: 14px;
+  color: #ff7f00;
+}
+.mainText {
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 100%;
+}
+.points {
+  color: #ffffff;
+  font-size: 36px;
+  text-shadow: 1px 1px #a0a0a0;
+}
+.pointProduction {
+  font-size: 14px;
+  color: #c0c0c0;
+}
+
+/*按钮通用属性*/
+button {
+  border: 2px solid;
+  padding: 4px;
+  margin: 1px;
+  font-size: 14px;
+  text-align: center;
+  transition: all 200ms;
+}
+
+/*声望按钮类*/
+button.prestige {
+  width: 160px;
+  height: 80px;
+  border-color: #7f7f7f;
+  background-color: #181818;
+  color: #7f7f7f;
+  cursor: not-allowed;
+}
+button.prestige-affordable {
+  width: 160px;
+  height: 80px;
+  border-color: #ffffff;
+  background-color: #484848;
+  color: #ffffff;
+}
+button.prestige-affordable:hover {
+  background-color: #606060;
+  cursor: pointer;
+}
+button.prestige-affordable:active {
+  transform: scale(0.98, 0.98);
+}
+
+/*升级按钮类*/
+button.upgrade {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 150px;
+  height: 120px;
+  margin: 5px;
+  border-color: #7f7f7f;
+  background-color: #181818;
+  color: #7f7f7f;
+  cursor: not-allowed;
+}
+button.upgrade-affordable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 150px;
+  height: 120px;
+  margin: 5px;
+  border-color: #ffffff;
+  background-color: #484848;
+  color: #ffffff;
+}
+button.upgrade-affordable:hover {
+  background-color: #606060;
+  cursor: pointer;
+}
+button.upgrade-affordable:active {
+  transform: scale(0.98, 0.98);
+}
+button.upgrade-bought {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 150px;
+  height: 120px;
+  margin: 5px;
+  border-color: #3fcf3f;
+  background-color: #005f00;
+  color: #ffffff;
+}
+
+/*开关类*/
+button.toggle-on {
+  height: 32px;
+  min-width: 60px;
+  border-color: #3fcf3f;
+  background-color: #005f00;
+  color: #ffffff;
+}
+button.toggle-on:hover {
+  background-color: #007f00;
+}
+button.toggle-off {
+  height: 32px;
+  min-width: 60px;
+  border-color: #cf3f3f;
+  background-color: #5f0000;
+  color: #ffffff;
+}
+button.toggle-off:hover {
+  background-color: #7f0000;
+}
+
+table.buyables {
+  margin: auto;
+  border: 0px;
+  font-size: 14px;
+  color: #ffffff;
+  text-align: left;
+}
+tr.buyables {
+  height: 32px;
+  padding: 4px;
+}
+td {
+  padding: 0px;
+}
+div.upgrades {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
