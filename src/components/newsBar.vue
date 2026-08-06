@@ -1,10 +1,61 @@
 <script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { randomNews } from '@/news'
+import { settings } from '@/settings'
+
+const containerRef = ref<HTMLElement>()
+const textRef = ref<HTMLElement>()
+const newsText = ref('')
+/**新闻位置(px)，从右侧出现并不断左移 */
+const pos = ref(0)
+/**滚动速率(px/s) */
+const speed = 100
+let containerWidth = 0
+let textWidth = 0
+let lastTime = 0
+let raf = 0
+
+/**随机抽取下一条新闻并置于右侧 */
+function nextNews() {
+  newsText.value = randomNews()
+  pos.value = containerWidth
+  nextTick(() => {
+    textWidth = textRef.value?.offsetWidth ?? 0
+  })
+}
+/**每帧将新闻向左移动，完全消失后换下一条 */
+function tick(now: number) {
+  const dt = (now - lastTime) / 1000
+  lastTime = now
+  pos.value -= speed * dt
+  if (pos.value + textWidth < 0) nextNews()
+  raf = requestAnimationFrame(tick)
+}
+onMounted(() => {
+  containerWidth = containerRef.value?.clientWidth ?? 0
+  lastTime = performance.now()
+  nextNews()
+  raf = requestAnimationFrame(tick)
+  window.addEventListener('resize', onResize)
+})
+onBeforeUnmount(() => {
+  cancelAnimationFrame(raf)
+  window.removeEventListener('resize', onResize)
+})
+/**窗口大小变化时更新容器宽度 */
+function onResize() {
+  containerWidth = containerRef.value?.clientWidth ?? 0
+}
 </script>
 <template>
-  <div id="newsBar">
-    <div class="newsContainer">
-      <span class="newsText" v-html="randomNews()"></span>
+  <div id="newsBar" v-if="settings.showNews">
+    <div ref="containerRef" class="newsContainer">
+      <span
+        ref="textRef"
+        class="newsText"
+        :style="{ transform: `translateX(${pos}px) translateY(-50%)` }"
+        v-html="newsText"
+      ></span>
     </div>
   </div>
 </template>
@@ -19,15 +70,17 @@ div.newsContainer {
   height: 100%;
   padding: 4px;
   box-sizing: border-box;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--dim);
   border-radius: 6px;
   overflow: hidden;
   position: relative;
 }
 .newsText {
   font-size: 16px;
-  color: #ffffff;
+  color: var(--text);
   position: absolute;
-  height: 20.8px;
+  left: 0;
+  top: 50%;
+  white-space: nowrap;
 }
 </style>

@@ -1,45 +1,75 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { player } from '@/player'
+import { player, type mainTabs } from '@/data/player'
+import { hasAnyUpgrade, isActive } from '@/access'
+import { getMetaLayers } from '@/meta/registry'
+
+interface tabInfo {
+  id: mainTabs
+  name: string
+  /**是否为元重置层标签 */
+  meta: boolean
+}
+/**导航栏的所有标签(按解锁条件过滤) */
+const tabs = computed(() => {
+  const list: tabInfo[] = [
+    { id: 'layers', name: '层级', meta: false },
+    { id: 'options', name: '选项', meta: false },
+    { id: 'achievements', name: '成就', meta: false },
+  ]
+  if (player.knowledgeUnlocked) {
+    list.push({ id: 'knowledge', name: '知识', meta: false })
+  }
+  if (isActive([3])) {
+    list.push({ id: 'challenges', name: '挑战', meta: false })
+  }
+  if (hasAnyUpgrade(4)) {
+    list.push({ id: 'automation', name: '自动化', meta: false })
+  }
+  for (const m of getMetaLayers()) {
+    if (m.isUnlocked()) list.push({ id: m.id as mainTabs, name: m.name ?? m.id, meta: true })
+  }
+  return list
+})
 </script>
 <template>
   <div id="navigatorBar">
     <button
-      :class="{ mainTab: true, selected: player.mainTab == 'layers' }"
-      @click="player.mainTab = 'layers'"
+      v-for="tab in tabs"
+      :key="tab.id"
+      :class="{ mainTab: true, meta: tab.meta, selected: player.mainTab == tab.id }"
+      @click="player.mainTab = tab.id"
     >
-      层级
-    </button>
-    <button
-      :class="{ mainTab: true, selected: player.mainTab == 'options' }"
-      @click="player.mainTab = 'options'"
-    >
-      选项
+      {{ tab.name }}
     </button>
   </div>
 </template>
 <style lang="css" scoped>
 div#navigatorBar {
-  border: 2px solid #c0c0c0;
+  border: 2px solid var(--dim);
   width: 150px;
   height: 100%;
   box-sizing: border-box;
 }
-button.mainTab {
-  width: 100%;
-  height: 40px;
-  border-color: #c0c0c0;
-  background-color: #181818;
-  color: #c0c0c0;
-  font-size: 16px;
-  &.selected {
-    border-color: #ffffff;
-    background-color: #484848;
-    color: #ffffff;
+/*窄屏或矮屏(横屏):横向排列，按钮可换行，高度至少为固定值*/
+@media (max-width: 700px), (max-height: 500px) {
+  div#navigatorBar {
+    width: 100%;
+    height: auto;
+    min-height: 40px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border: none;
+    border-bottom: 2px solid var(--dim);
   }
-}
-button.mainTab:hover {
-  background-color: #303030;
-  cursor: pointer;
+  button.mainTab {
+    width: auto;
+    flex: 0 0 auto;
+    height: 36px;
+    padding: 0 8px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
 }
 </style>

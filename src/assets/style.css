@@ -2,8 +2,64 @@
   font-family: SourceHanSansSC;
   src: url('./SourceHanSansSC-Regular-2.otf');
 }
+/*------主题变量(深色为默认)------*/
+:root {
+  --bg: #181818;
+  --panel: #181818;
+  --text: #ffffff;
+  --dim: #c0c0c0;
+  --strong: #ffffff;
+  --faint: #606060;
+  --disabled: #7f7f7f;
+  --selected-bg: #484848;
+  --hover: #303030;
+  --affordable-hover: #606060;
+  --shadow: #a0a0a0;
+  --row-even: #777777;
+  --row-odd: #333333;
+  --input-bg: #101010;
+  --meta-border: #c060e0;
+  --meta-text: #e0a0f0;
+  --meta-strong: #f0d0ff;
+  --meta-bg: #603060;
+  --meta-hover: #503050;
+  --good-border: #3fcf3f;
+  --good-bg: #005f00;
+  --good-hover: #007f00;
+  --bad-border: #cf3f3f;
+  --bad-bg: #5f0000;
+  --bad-hover: #7f0000;
+}
+body.light {
+  --bg: #f0f0f0;
+  --panel: #e8e8e8;
+  --text: #181818;
+  --dim: #404040;
+  --strong: #101010;
+  --faint: #909090;
+  --disabled: #808080;
+  --selected-bg: #c0c0c0;
+  --hover: #d8d8d8;
+  --affordable-hover: #b0b0b0;
+  --shadow: #808080;
+  --row-even: #d0d0d0;
+  --row-odd: #e0e0e0;
+  --input-bg: #ffffff;
+  --meta-border: #a050c0;
+  --meta-text: #7a30a0;
+  --meta-strong: #7a30a0;
+  --meta-bg: #d8b0e8;
+  --meta-hover: #e0c8f0;
+  --good-border: #2f9f2f;
+  --good-bg: #c8e8c8;
+  --good-hover: #b0d8b0;
+  --bad-border: #cf3f3f;
+  --bad-bg: #f0c8c8;
+  --bad-hover: #e0b0b0;
+}
 body {
-  background-color: #181818;
+  background-color: var(--bg);
+  color: var(--text);
   -moz-user-select: none;
   -webkit-user-select: none;
   user-select: none;
@@ -16,7 +72,7 @@ a {
 }
 .text {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text);
 }
 .bold {
   font-weight: bold;
@@ -28,29 +84,30 @@ a {
 }
 .text-highlight {
   font-size: 18px;
-  color: #ffffff;
-  text-shadow: 1px 1px #a0a0a0;
+  color: var(--text);
+  text-shadow: 1px 1px var(--shadow);
 }
 .freeLevel {
   font-size: 14px;
   color: #ff7f00;
 }
 .mainText {
-  color: #ffffff;
+  color: var(--text);
   font-size: 24px;
   line-height: 100%;
 }
 .points {
-  color: #ffffff;
+  color: var(--text);
   font-size: 36px;
-  text-shadow: 1px 1px #a0a0a0;
+  text-shadow: 1px 1px var(--shadow);
 }
 .pointProduction {
   font-size: 14px;
-  color: #c0c0c0;
+  color: var(--dim);
 }
 
-/*按钮通用属性*/
+/*------按钮体系------*/
+/*按钮基础:默认颜色与通用行为*/
 button {
   border: 2px solid;
   padding: 4px;
@@ -58,33 +115,78 @@ button {
   font-size: 14px;
   text-align: center;
   transition: all 200ms;
+  border-color: var(--dim);
+  background-color: var(--panel);
+  color: var(--dim);
+  cursor: not-allowed;
+}
+button:hover:not(:disabled) {
+  background-color: var(--hover);
+  cursor: pointer;
 }
 
-/*声望按钮类*/
+/*按钮状态:决定颜色*/
+button.selected,
+button.affordable {
+  border-color: var(--strong);
+  background-color: var(--selected-bg);
+  color: var(--strong);
+}
+button.selected:hover:not(:disabled),
+button.affordable:hover:not(:disabled) {
+  background-color: var(--affordable-hover);
+}
+button.affordable:active {
+  transform: scale(0.98, 0.98);
+}
+button.bought {
+  border-color: var(--good-border);
+  background-color: var(--good-bg);
+  color: var(--text);
+}
+button.toggle-on {
+  border-color: var(--good-border);
+  background-color: var(--good-bg);
+  color: var(--text);
+}
+button.toggle-on:hover:not(:disabled) {
+  background-color: var(--good-hover);
+}
+button.toggle-off {
+  border-color: var(--bad-border);
+  background-color: var(--bad-bg);
+  color: var(--text);
+}
+button.toggle-off:hover:not(:disabled) {
+  background-color: var(--bad-hover);
+}
+/*元重置层的修饰颜色*/
+button.meta {
+  border-color: var(--meta-border);
+  color: var(--meta-text);
+}
+button.meta.selected {
+  border-color: var(--meta-strong);
+  background-color: var(--meta-bg);
+  color: var(--strong);
+}
+button.meta:hover:not(:disabled) {
+  background-color: var(--meta-hover);
+}
+
+/*按钮类型:决定大小与布局*/
+button.subTab {
+  height: 28px;
+  padding: 2px 10px;
+}
 button.prestige {
   width: 160px;
   height: 80px;
-  border-color: #7f7f7f;
-  background-color: #181818;
-  color: #7f7f7f;
-  cursor: not-allowed;
 }
-button.prestige-affordable {
+button.buyable {
   width: 160px;
-  height: 80px;
-  border-color: #ffffff;
-  background-color: #484848;
-  color: #ffffff;
+  height: 32px;
 }
-button.prestige-affordable:hover {
-  background-color: #606060;
-  cursor: pointer;
-}
-button.prestige-affordable:active {
-  transform: scale(0.98, 0.98);
-}
-
-/*升级按钮类*/
 button.upgrade {
   display: flex;
   align-items: center;
@@ -93,70 +195,22 @@ button.upgrade {
   width: 150px;
   height: 120px;
   margin: 5px;
-  border-color: #7f7f7f;
-  background-color: #181818;
-  color: #7f7f7f;
-  cursor: not-allowed;
 }
-button.upgrade-affordable {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  width: 150px;
-  height: 120px;
-  margin: 5px;
-  border-color: #ffffff;
-  background-color: #484848;
-  color: #ffffff;
+button.mainTab {
+  width: 100%;
+  height: 40px;
+  font-size: 16px;
 }
-button.upgrade-affordable:hover {
-  background-color: #606060;
-  cursor: pointer;
-}
-button.upgrade-affordable:active {
-  transform: scale(0.98, 0.98);
-}
-button.upgrade-bought {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  width: 150px;
-  height: 120px;
-  margin: 5px;
-  border-color: #3fcf3f;
-  background-color: #005f00;
-  color: #ffffff;
-}
-
-/*开关类*/
-button.toggle-on {
+button.toggle {
   height: 32px;
   min-width: 60px;
-  border-color: #3fcf3f;
-  background-color: #005f00;
-  color: #ffffff;
-}
-button.toggle-on:hover {
-  background-color: #007f00;
-}
-button.toggle-off {
-  height: 32px;
-  min-width: 60px;
-  border-color: #cf3f3f;
-  background-color: #5f0000;
-  color: #ffffff;
-}
-button.toggle-off:hover {
-  background-color: #7f0000;
 }
 
 table.buyables {
   margin: auto;
   border: 0px;
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text);
   text-align: left;
 }
 tr.buyables {

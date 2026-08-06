@@ -1,8 +1,8 @@
 //游戏中用到的辅助函数
-import Decimal, { type CompareResult } from 'break_eternity.js'
+import type { CompareResult } from 'break_eternity.js'
 /**硬拷贝 */
-export function hardCopy(obj: any): any {
-  return JSON.parse(JSON.stringify(obj))
+export function hardCopy<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj)) as T
 }
 //------随机数相关------
 /**可SL的随机整数，左闭右开 */

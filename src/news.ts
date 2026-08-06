@@ -1,5 +1,5 @@
-import { gameName, gameVersion } from './player'
-import { randInt } from './utils'
+import { gameName, gameVersion } from '@/data/constants'
+import { randInt } from '@/tools/utils'
 type newsItem = string | (() => string)
 const NEWS: newsItem[] = [
   //Hello World
@@ -80,7 +80,12 @@ const NEWS: newsItem[] = [
   '<a href="https://www.bilibili.com/video/BV1GJ411x7h7">这是一个超链接,你应该知道它代表什么.</a>',
 ]
 
+let lastIndex = -1
 export function randomNews(): string {
-  const news: newsItem = NEWS[randInt(0, NEWS.length)] || ''
+  let index = randInt(0, NEWS.length)
+  //避免连续出现同一条新闻
+  if (index == lastIndex) index = (index + 1) % NEWS.length
+  lastIndex = index
+  const news: newsItem = NEWS[index] || ''
   return typeof news == 'function' ? news() : news
 }

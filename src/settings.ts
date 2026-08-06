@@ -1,0 +1,80 @@
+//设置(纯呈现偏好，独立于存档，存放在localStorage)
+import { reactive } from 'vue'
+import { gameName } from '@/data/constants'
+import { type logType } from '@/log'
+
+export type themeType = 'dark' | 'light'
+
+/**主题定义 */
+export interface ThemeDef {
+  id: themeType
+  name: string
+}
+
+/**所有可选的主题(加入新主题时在此添加，并到style.css中补充body.<id>的变量覆盖) */
+export const THEMES: ThemeDef[] = [
+  { id: 'dark', name: '深色' },
+  { id: 'light', name: '浅色' },
+]
+
+export interface Settings {
+  /**主题 */
+  theme: themeType
+  /**是否显示滚动新闻 */
+  showNews: boolean
+  /**自动保存间隔(秒) */
+  autoSaveInterval: number
+  /**是否显示日志栏 */
+  showLog: boolean
+  /**各类型日志是否显示 */
+  logFilter: Record<logType, boolean>
+}
+
+/**默认设置 */
+export function defaultSettings(): Settings {
+  return {
+    theme: 'dark',
+    showNews: true,
+    autoSaveInterval: 10,
+    showLog: true,
+    logFilter: { info: true, warning: true, error: true, progress: true, automator: true },
+  }
+}
+
+export const settings: Settings = reactive(defaultSettings())
+
+const SETTINGS_KEY = gameName + '-settings'
+
+/**从localStorage读取设置 */
+export function loadSettings() {
+  const s = localStorage.getItem(SETTINGS_KEY)
+  if (s) {
+    try {
+      Object.assign(settings, defaultSettings(), JSON.parse(s))
+    } catch {
+      //设置损坏时使用默认值
+    }
+  }
+}
+
+/**保存设置到localStorage */
+export function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+}
+
+/**应用主题到页面 */
+export function applyTheme() {
+  for (const t of THEMES) document.body.classList.remove(t.id)
+  document.body.classList.add(settings.theme)
+}
+
+/**循环切换主题 */
+export function cycleTheme() {
+  const idx = THEMES.findIndex((t) => t.id == settings.theme)
+  const next = THEMES[(idx + 1) % THEMES.length]
+  if (next) {
+    settings.theme = next.id
+    applyTheme()
+    saveSettings()
+  }
+}

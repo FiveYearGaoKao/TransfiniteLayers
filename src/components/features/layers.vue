@@ -1,30 +1,30 @@
 <script setup lang="ts">
-import { format, formatWhole } from '@/format'
-import { getLayer, getLayerIndex, getLayerName, isLayer0, shiftLayer } from '@/layers'
-import {
-  buyDimension,
-  canAfford,
-  dimensionCost,
-  dimensionExponent,
-  dimensionMultiplier,
-} from '@/layers/dimensions'
-import { dimensionAmount } from '@/layers/easyAccess'
-import { canReset, doReset, resetGain } from '@/layers/prestige'
-import { player } from '@/player'
-import { addValue } from '@/save'
+import { format, formatWhole } from '@/tools/format'
+import { getLayer, getLayerName, dimensionAmount } from '@/access'
+import { getLayerIndex, getLayerOrder, isLayer0, shiftLayer } from '@/tools/ordinal'
+import { dimensionCost, dimensionExponent, dimensionMultiplier } from '@/compute/dimensions'
+import { getBuyables, isUnlocked as isBuyableUnlocked } from '@/compute/buyables'
+import { getUpgrades, isUnlocked as isUpgradeUnlocked } from '@/compute/upgrades'
+import { buyDimension, canAfford } from '@/logic/purchase'
+import { dimsAutoUnlocked, isAutoItem, toggleAutoItem } from '@/logic/automations'
+import { canReset, resetGain } from '@/compute/prestige'
+import { doReset } from '@/logic/reset'
+import { player } from '@/data/player'
 import { computed } from 'vue'
+import BuyableItem from './buyableItem.vue'
+import UpgradeItem from './upgradeItem.vue'
 interface layerName {
   pos: number[]
   name: string
   selected: boolean
 }
 /**层级表显示的所有层级 */
-let layerList = computed(() => {
+const layerList = computed(() => {
   const res: layerName[][] = []
   for (let i = player.layerDepth - 1; i >= 0; --i) {
     const layerRow: layerName[] = []
     for (let j = 0; j <= player.base; ++j) {
-      let k = j < player.base ? j : -1
+      const k = j < player.base ? j : -1
       const pos = shiftLayer(player.layerSubtab, i, k)
       layerRow.push({
         pos: pos,
@@ -38,14 +38,26 @@ let layerList = computed(() => {
   return res
 })
 /**当前选择的层级 */
-let selectedLayer = computed(() => {
+const selectedLayer = computed(() => {
   return getLayer(player.layerSubtab)
 })
+/**当前层级可显示的可购买 */
+const buyableList = computed(() =>
+  getBuyables(getLayerOrder(player.layerSubtab)).filter((b) =>
+    isBuyableUnlocked(player.layerSubtab, b.id),
+  ),
+)
+/**当前层级可显示的升级(按升级的解锁条件过滤) */
+const upgradeList = computed(() =>
+  getUpgrades(getLayerOrder(player.layerSubtab)).filter((u) =>
+    isUpgradeUnlocked(player.layerSubtab, u.id),
+  ),
+)
 </script>
 <template>
   <div id="layers" style="height: 100%">
-    <div v-for="i in layerList">
-      <template v-for="j in i">
+    <div v-for="(i, rowIndex) in layerList" :key="rowIndex">
+      <template v-for="(j, colIndex) in i" :key="colIndex">
         <button
           :class="{ subTab: true, selected: j.selected }"
           v-if="getLayer(j.pos)"
@@ -73,9 +85,9 @@ let selectedLayer = computed(() => {
     </span>
 
     <br />
-    <template v-for="i in 4">
-      <div class="dimensionItem" :class="{ even: i % 2 == 0, odd: i % 2 == 1 }">
-        <div>
+    <div id="dimensionTable">
+      <template v-for="i in 4" :key="i">
+        <div class="cell">
           <span class="text">{{ getLayerName(player.layerSubtab) }}维度{{ i }}</span>
           <span class="text"
             >x{{ format(dimensionMultiplier(player.layerSubtab, i - 1), 3) }} ^{{
@@ -83,23 +95,49 @@ let selectedLayer = computed(() => {
             }}</span
           >
         </div>
-        <div>
+        <div class="cell">
           <span class="text"
             >{{ format(dimensionAmount(selectedLayer, i - 1)) }}({{
               formatWhole(dimensionAmount(selectedLayer, i - 1, 1))
             }})
           </span>
         </div>
-        <div>
+        <div class="cell" :class="{ row: dimsAutoUnlocked(player.layerSubtab) }">
           <button
-            :class="{ buyable: true, affordable: canAfford(player.layerSubtab, i - 1) }"
+            :class="['buyable', canAfford(player.layerSubtab, i - 1) ? 'affordable' : '']"
             @click="buyDimension(player.layerSubtab, i - 1)"
           >
             价格: {{ formatWhole(dimensionCost(player.layerSubtab, i - 1)) }}
           </button>
+          <button
+            v-if="dimsAutoUnlocked(player.layerSubtab)"
+            :class="[
+              'toggle',
+              isAutoItem(player.layerSubtab, 'dims', i - 1) ? 'toggle-on' : 'toggle-off',
+            ]"
+            @click="toggleAutoItem(player.layerSubtab, 'dims', i - 1)"
+          >
+            自动:{{ isAutoItem(player.layerSubtab, 'dims', i - 1) ? '开' : '关' }}
+          </button>
         </div>
-      </div>
-    </template>
+      </template>
+    </div>
+    <div id="upgrades">
+      <UpgradeItem
+        v-for="upgrade in upgradeList"
+        :key="upgrade.id"
+        :pos="player.layerSubtab"
+        :def="upgrade"
+      />
+    </div>
+    <div id="buyables">
+      <BuyableItem
+        v-for="buyable in buyableList"
+        :key="buyable.id"
+        :pos="player.layerSubtab"
+        :def="buyable"
+      />
+    </div>
   </div>
 </template>
 <style scoped>
@@ -108,83 +146,70 @@ div#layers {
   flex-direction: column;
   align-items: center;
 }
-div.dimensionItem {
+div#dimensionTable {
   display: grid;
-  grid-template-columns: 120px 160px 180px;
-  grid-template-rows: 40px;
-  > div {
+  grid-template-columns: 110px 140px 150px;
+  grid-auto-rows: 32px;
+  .cell {
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: center;
+    &.row {
+      flex-direction: row;
+      gap: 2px;
+    }
+    .text {
+      font-size: 12px;
+    }
+    button {
+      height: 26px;
+      font-size: 11px;
+    }
+    button.buyable {
+      width: 88px;
+    }
+    button.toggle {
+      width: 72px;
+      min-width: 0;
+      padding: 0 4px;
+    }
+  }
+  /*奇数维度行与偶数维度行颜色不同*/
+  .cell:nth-child(6n + 1),
+  .cell:nth-child(6n + 2),
+  .cell:nth-child(6n + 3) {
+    background-color: var(--row-odd);
+  }
+  .cell:nth-child(6n + 4),
+  .cell:nth-child(6n + 5),
+  .cell:nth-child(6n + 6) {
+    background-color: var(--row-even);
   }
 }
-div.even {
-  background-color: #777777;
-  height: 40px;
+/*可购买行*/
+div#buyables {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: 10px;
 }
-div.odd {
-  background-color: #333333;
-  height: 40px;
+/*升级区*/
+div#upgrades {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
 }
-button.subTab {
-  /* width: 100px; */
-  height: 28px;
-  border-color: #c0c0c0;
-  padding: 2px 10px;
-  background-color: #181818;
-  color: #c0c0c0;
-  &.selected {
-    border-color: #ffffff;
-    background-color: #484848;
-    color: #ffffff;
+/*窄屏:统一表格列宽自适应，所有行列宽一致*/
+@media (max-width: 700px) {
+  div#dimensionTable {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
-button.subTab:hover {
-  background-color: #303030;
-  cursor: pointer;
-}
-/*重置按钮*/
-button.prestige {
-  width: 160px;
-  height: 80px;
-  border-color: #c0c0c0;
-  background-color: #181818;
-  color: #c0c0c0;
-  &.affordable {
-    border-color: #ffffff;
-    background-color: #484848;
-    color: #ffffff;
-    cursor: pointer;
+  div#dimensionTable button {
+    width: 100%;
   }
-}
-button.prestige:hover {
-  background-color: #303030;
-}
-
-/*可购买按钮类*/
-button.buyable {
-  width: 160px;
-  height: 32px;
-  border-color: #c0c0c0;
-  background-color: #181818;
-  color: #c0c0c0;
-  cursor: not-allowed;
-  &.affordable {
-    border-color: #ffffff;
-    background-color: #484848;
-    color: #ffffff;
-    cursor: pointer;
-  }
-}
-button.buyable:hover {
-  background-color: #303030;
-}
-
-button.affordable:hover {
-  background-color: #606060;
-  cursor: pointer;
-}
-button.affordable:active {
-  transform: scale(0.98, 0.98);
 }
 </style>

@@ -1,20 +1,23 @@
 //游戏循环的核心函数
 import Decimal from 'break_eternity.js'
-import { player } from './player'
-import { addValue, localSave } from './save'
-import { updateLayers } from './layers/update'
-import { addLog } from './log'
-import { formatTime } from './format'
-import { temp } from './temp'
+import { player } from '@/data/player'
+import { addValue, localSave } from '@/save/save'
+import { updateLayers } from '@/logic/update'
+import { updateAutomations } from '@/logic/automations'
+import { getMetaLayers } from '@/meta/registry'
+import { updateAchievements } from '@/logic/achievements'
+import { addLog } from '@/log'
+import { formatTime } from '@/tools/format'
+import { temp } from '@/temp'
+import { settings } from '@/settings'
+import { OFFLINE_THRESHOLD } from '@/data/constants'
 
 const FPS: number = 30
-/**离线检测的阈值 */
-const offlineThreshold: number = 10
 let saveTimer = 0
 /**自动保存循环，每秒检测一次 */
 export function autoSaveLoop() {
   saveTimer++
-  if (saveTimer > 10) {
+  if (saveTimer >= settings.autoSaveInterval) {
     saveTimer = 0
     localSave()
     addLog('info', '游戏已保存')
@@ -25,6 +28,9 @@ function gameLoop(dt: Decimal) {
   addValue('totalTime', dt)
   dt = dt.mul(temp.psdSpeed)
   updateLayers(dt)
+  for (const meta of getMetaLayers()) meta.onTick(dt)
+  updateAutomations(dt)
+  updateAchievements()
 }
 /**游戏暂停和恢复 */
 export function pause() {
@@ -41,7 +47,7 @@ export function mainLoop() {
   if (player.paused) {
     //检测游戏是否暂停
     addValue('offlineTime', dt)
-  } else if (dt.gte(offlineThreshold)) {
+  } else if (dt.gte(OFFLINE_THRESHOLD)) {
     //若距上一次加载超过一定时间，则认为玩家离线
     addLog('info', `欢迎回来!你离线了${formatTime(dt)}.`)
     addValue(player.enableOfflineProgress ? 'warpTime' : 'offlineTime', dt)

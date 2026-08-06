@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { format } from '@/format'
-import { getLayer } from '@/layers'
-import { player } from '@/player'
+import { format } from '@/tools/format'
+import { getLayer } from '@/access'
 </script>
 <template>
   <div id="resourceBar">
@@ -13,7 +12,7 @@ import { player } from '@/player'
 </template>
 <style scoped>
 div#resourceBar {
-  border: 2px solid #c0c0c0;
+  border: 2px solid var(--dim);
   width: 100%;
   height: 120px;
   box-sizing: border-box;

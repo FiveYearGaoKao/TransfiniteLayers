@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { pause, tick } from '@/core'
-import { player } from '@/player'
-import { hardReset, localLoad, localSave } from '@/save'
+import { player } from '@/data/player'
+import { hardReset, localLoad, localSave } from '@/save/save'
 </script>
 <template>
   <div id="toolBar">
@@ -14,7 +14,7 @@ import { hardReset, localLoad, localSave } from '@/save'
 </template>
 <style scoped>
 div#toolBar {
-  border: 2px solid #c0c0c0;
+  border: 2px solid var(--dim);
   width: 100%;
   height: 40px;
   box-sizing: border-box;
