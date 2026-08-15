@@ -2,7 +2,14 @@
 import { formatWhole } from '@/tools/format'
 import type { LayerId } from '@/data/types'
 import type { BuyableDef } from '@/compute/buyables'
-import { buyableAmount, buyableCost, canBuyBuyable } from '@/compute/buyables'
+import {
+  buyableAmount,
+  buyableCost,
+  buyableDescription,
+  buyableEffectText,
+  buyableFreeLevels,
+  canBuyBuyable,
+} from '@/compute/buyables'
 import { buyBuyable } from '@/logic/purchase'
 import { buyablesAutoUnlocked, isAutoItem, toggleAutoItem } from '@/logic/automations'
 
@@ -10,17 +17,25 @@ const props = defineProps<{
   pos: LayerId
   def: BuyableDef
 }>()
+/**已购等级 */
+const bought = () => buyableAmount(props.pos, props.def.id)
+/**免费等级 */
+const free = () => buyableFreeLevels(props.pos, props.def.id)
+/**描述(支持模板) */
+const description = () => buyableDescription(props.def, props.pos)
+/**总效果文字 */
+const effectText = () => buyableEffectText(props.def, props.pos)
 </script>
 <template>
   <div class="buyableItem">
     <div class="buyableInfo">
-      <span class="text name">{{ props.def.name }}</span>
-      <span class="text">{{ props.def.description }}</span>
-      <span class="text"
-        >已购买 {{ formatWhole(buyableAmount(props.pos, props.def.id)) }} 次 ({{
-          props.def.effectText(props.pos, buyableAmount(props.pos, props.def.id))
-        }})</span
+      <span class="text name">{{ props.def.name }}({{ formatWhole(bought()) }}<template
+          v-if="free().gt(0)"
+          ><span class="freeLevel">+{{ formatWhole(free()) }}</span></template
+        >)</span
       >
+      <span class="text">{{ description() }}</span>
+      <span class="text">{{ effectText() }}</span>
     </div>
     <div class="row">
       <button

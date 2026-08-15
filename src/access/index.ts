@@ -79,6 +79,16 @@ export function dimensionTotalBought(layer: _Layer): Decimal {
   }
   return total
 }
+/**获取某层所有可购买的已购买数量总和 */
+export function buyableTotalBought(layer: _Layer): Decimal {
+  const L = layer instanceof Array ? getLayer(layer) : layer
+  if (!L) return new Decimal(0)
+  let total = new Decimal(0)
+  for (const key of Object.keys(L.buyables)) {
+    total = total.add(L.buyables[Number(key)] || 0)
+  }
+  return total
+}
 /**获取序数进制 */
 export function getBase(): number {
   return player.base
@@ -133,4 +143,8 @@ export function hasAnyUpgrade(id: number): boolean {
     if (getLayer(posArray(key))?.upgrades.includes(id)) return true
   }
   return false
+}
+/**是否已解锁指定成就 */
+export function hasAchievement(id: string): boolean {
+  return player.achievements.includes(id)
 }

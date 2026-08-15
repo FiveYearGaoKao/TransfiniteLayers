@@ -3,7 +3,8 @@ import Decimal from 'break_eternity.js'
 import type { LayerId } from '@/data/types'
 import { dimensionAmount, getBase } from '@/access'
 import { getLayerOrder, isLayer0 } from '@/tools/ordinal'
-import { calculate, registerEffect } from './effects'
+import { calculate } from './effects'
+import './energy'
 
 interface dimensionInfo {
   cost: (layer: LayerId, id: number, n: Decimal) => Decimal
@@ -13,19 +14,13 @@ interface dimensionInfo {
 export const DIMENSIONS: dimensionInfo[] = [
   {
     cost(_layer: LayerId, id: number, n: Decimal): Decimal {
-      return new Decimal(getBase()).pow(n.mul(id + 1).add(id))
+      // 价格公式为 B^(a+b*n)
+      const base = new Decimal(id * 2)
+      const increment = new Decimal(id + 1)
+      return new Decimal(getBase()).pow(increment.mul(n).add(base))
     },
   },
 ]
-
-//维度的倍率和指数都属于加成，统一注册到加成管道
-registerEffect('dimensionMult', {
-  id: 'dimension-self',
-  order: -1,
-  apply(value, ctx) {
-    return value.mul(dimensionAmount(ctx.pos, ctx.id, 1).add(1))
-  },
-})
 
 /**已购n个时某维度的价格 */
 export function dimensionCostAt(layer: LayerId, id: number, n: Decimal): Decimal {

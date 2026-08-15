@@ -2,7 +2,7 @@
 import { formatWhole } from '@/tools/format'
 import type { LayerId } from '@/data/types'
 import type { UpgradeDef } from '@/compute/upgrades'
-import { canBuyUpgrade, hasUpgrade, upgradeCost } from '@/compute/upgrades'
+import { canBuyUpgrade, hasUpgrade, upgradeCost, upgradeEffectText } from '@/compute/upgrades'
 import { buyUpgrade } from '@/logic/purchase'
 
 const props = defineProps<{
@@ -22,7 +22,7 @@ const props = defineProps<{
   >
     <span class="text bold">{{ props.def.name }}</span>
     <span class="text">{{ props.def.description }}</span>
-    <span class="text">{{ props.def.effectText(props.pos) }}</span>
+    <span class="text">{{ upgradeEffectText(props.def, props.pos) }}</span>
     <span class="text" v-if="hasUpgrade(props.pos, props.def.id)">已购买</span>
     <span class="text" v-else>价格: {{ formatWhole(upgradeCost(props.pos, props.def.id)) }}</span>
   </button>

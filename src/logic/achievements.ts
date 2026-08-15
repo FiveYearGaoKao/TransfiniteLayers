@@ -1,6 +1,7 @@
 //成就注册表
 import { player } from '@/data/player'
 import { dimensionAmount, getLayer, hasAnyUpgrade } from '@/access'
+import { buyableAmount } from '@/compute/buyables'
 import { KNOWLEDGE_UNLOCK_AMOUNT } from '@/data/constants'
 import { addLog } from '@/log'
 
@@ -103,4 +104,11 @@ registerAchievement({
   description: '解锁自动化(购买u4)',
   reward: 3,
   isCompleted: () => hasAnyUpgrade(4),
+})
+registerAchievement({
+  id: 'a21',
+  name: '加速器满仓',
+  description: '购买至少75个层级0加速器',
+  reward: 3,
+  isCompleted: () => buyableAmount([0], 11).gte(75),
 })

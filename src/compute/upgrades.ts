@@ -5,15 +5,37 @@ import Decimal from 'break_eternity.js'
 import type { LayerId } from '@/data/types'
 import {
   dimensionAmount,
+  dimensionTotalBought,
+  getBase,
   getLayer,
   getPoints,
+  hasAchievement,
   higherLayer,
-  getBase,
 } from '@/access'
 import { compareLayer, isLayer0 } from '@/tools/ordinal'
 import { format } from '@/tools/format'
 import { resetGain } from './prestige'
-import { registerEffect, type EffectContext, type EffectTarget } from './effects'
+import {
+  effectText,
+  registerEffect,
+  slotValue,
+  type EffectDef,
+  type RegisteredEffect,
+} from './effects'
+import { U1_POINTS_EXPONENT } from '@/data/constants'
+
+/**u3额外加速器:本层已购维度总等级×0.2 + 已购升级数量 */
+const FREE_LEVEL_FACTOR = 0.2
+
+/**点数作用的加成公式:ln(点数+1)+1 再取exponent次方 */
+function u1Formula(points: Decimal, exponent: Decimal): Decimal {
+  return points.add(1).ln().add(1).pow(exponent)
+}
+
+/**点数作用的当前指数(u1:base槽位的组合值) */
+function u1Exponent(): Decimal {
+  return slotValue({ target: 'u1:base', init: () => U1_POINTS_EXPONENT }, { pos: [0], id: 0 })
+}
 
 /**升级的配置 */
 export interface UpgradeDef {
@@ -23,8 +45,10 @@ export interface UpgradeDef {
   /**该升级适用的层级阶数 */
   order: number
   cost(layer: LayerId): Decimal
-  /**购买效果的文字说明 */
-  effectText(layer: LayerId): string
+  /**数值效果(声明式,可省略) */
+  effect?: EffectDef
+  /**购买效果的文字说明(缺省从effect自动生成) */
+  effectText?(layer: LayerId): string
   /**是否解锁该升级，默认一直解锁 */
   isUnlocked?(layer: LayerId): boolean
   /**前置升级，需先在本层购买 */
@@ -41,8 +65,21 @@ export const UPGRADES: UpgradeDef[] = [
     cost(): Decimal {
       return new Decimal(getBase())
     },
+    effect: {
+      target: 'pointsGain',
+      type: 'mul',
+      base: { target: 'u1:base', init: () => U1_POINTS_EXPONENT },
+      value(ctx, base) {
+        const higher = higherLayer(ctx.pos)
+        return higher ? u1Formula(getPoints(higher), base ?? new Decimal(1)) : 1
+      },
+      isActive: (ctx) => {
+        const higher = higherLayer(ctx.pos)
+        return !!higher && hasUpgrade(higher, 1)
+      },
+    },
     effectText(layer: LayerId): string {
-      return `下层点数获取 x${format(getPoints(layer).add(1).pow(0.25))}`
+      return `下层点数获取 x${format(u1Formula(getPoints(layer), u1Exponent()))}`
     },
     isUnlocked: (layer: LayerId) => !isLayer0(layer),
   },
@@ -52,25 +89,35 @@ export const UPGRADES: UpgradeDef[] = [
     description: '本层每个维度的产量 x(该维度已购+1)',
     order: 0,
     cost(): Decimal {
-      return new Decimal(getBase()).pow(2)
+      return new Decimal(getBase()).div(2).floor().pow(2)
     },
-    effectText(): string {
-      return '维度产量 x(该维度已购+1)'
+    effect: {
+      target: 'dimensionMult',
+      type: 'mul',
+      value: (ctx) => dimensionAmount(ctx.pos, ctx.id, 1).add(1),
+      text: '维度产量 x(该维度已购+1)',
     },
-    isUnlocked: (layer: LayerId) => isLayer0(layer),
+    isUnlocked: (_layer: LayerId) => true,
   },
   {
     id: 3,
-    name: '加速升级',
-    description: '解锁加速器加成',
+    name: '额外加速器',
+    description: '根据本层已购买的维度与升级总数提供额外加速器等级',
     order: 0,
     cost(): Decimal {
-      return new Decimal(10).pow(10)
+      return new Decimal(getBase()).pow(getBase() * 2)
     },
-    effectText(): string {
-      return '解锁加速器加成(b13)'
+    effect: {
+      target: 'b11:amount',
+      type: 'add',
+      value: (ctx) => {
+        const L = getLayer(ctx.pos)
+        if (!L) return 0
+        return dimensionTotalBought(ctx.pos).mul(FREE_LEVEL_FACTOR).add(L.upgrades.length).floor()
+      },
+      text: '额外加速器等级 +{value}',
     },
-    isUnlocked: (layer: LayerId) => isLayer0(layer),
+    isUnlocked: (_layer: LayerId) => hasAchievement('a16'),
   },
   {
     id: 4,
@@ -78,7 +125,7 @@ export const UPGRADES: UpgradeDef[] = [
     description: '解锁层级k-1维度自动购买',
     order: 0,
     cost(): Decimal {
-      return new Decimal(200)
+      return new Decimal(getBase()).pow(2)
     },
     effectText(): string {
       return '解锁层级k-1维度自动购买'
@@ -91,7 +138,7 @@ export const UPGRADES: UpgradeDef[] = [
     description: '解锁层级k-1加速器和加倍器自动购买',
     order: 0,
     cost(): Decimal {
-      return new Decimal(2000)
+      return new Decimal(getBase()).pow(2).mul(3)
     },
     effectText(): string {
       return '解锁层级k-1加速器和加倍器自动购买'
@@ -105,7 +152,7 @@ export const UPGRADES: UpgradeDef[] = [
     description: '解锁层级k自动重置',
     order: 0,
     cost(): Decimal {
-      return new Decimal(10).pow(5)
+      return new Decimal(getBase()).pow(3)
     },
     effectText(): string {
       return '解锁层级k自动重置'
@@ -119,7 +166,7 @@ export const UPGRADES: UpgradeDef[] = [
     description: '本层重置时不重置本层能量和维度数量',
     order: 0,
     cost(): Decimal {
-      return new Decimal(1000)
+      return new Decimal(getBase()).pow(2).mul(5)
     },
     effectText(): string {
       return '本层重置时保留能量和维度数量'
@@ -132,7 +179,7 @@ export const UPGRADES: UpgradeDef[] = [
     description: '本层重置时保留下层升级',
     order: 0,
     cost(): Decimal {
-      return new Decimal(10).pow(4)
+      return new Decimal(getBase()).pow(3).mul(5)
     },
     effectText(): string {
       return '本层重置时保留下层升级'
@@ -146,7 +193,7 @@ export const UPGRADES: UpgradeDef[] = [
     description: '每秒获得100%重置时获得的层级k-1点数',
     order: 0,
     cost(): Decimal {
-      return new Decimal(10).pow(6)
+      return new Decimal(1.79e308)
     },
     effectText(layer: LayerId): string {
       return `每秒获得${format(resetGain(layer))}点数`
@@ -191,41 +238,29 @@ export function canBuyUpgrade(layer: LayerId, id: number): boolean {
   if (def.requires?.some((r) => !hasUpgrade(layer, r))) return false
   return L.points.gte(upgradeCost(layer, id))
 }
-/**
- * 注册一个购买后生效的升级效果
- * 升级未购买时效果无效，购买后永久生效
- * @param name 用于在加成面板中显示的名称
- */
-export function registerUpgradeEffect(
-  target: EffectTarget,
-  upgradeId: number,
-  apply: (value: Decimal, ctx: EffectContext) => Decimal,
-  name?: string,
-) {
-  registerEffect(target, {
-    id: `upgrade-${upgradeId}`,
-    name,
-    order: 0,
-    apply(value, ctx) {
-      if (!hasUpgrade(ctx.pos, upgradeId)) return value
-      return apply(value, ctx)
-    },
-  })
+
+//------效果注册------
+/**把升级定义转换为注册效果(购买后生效) */
+function upgradeEffect(u: UpgradeDef): RegisteredEffect | undefined {
+  if (!u.effect) return undefined
+  return {
+    ...u.effect,
+    id: `upgrade-${u.id}`,
+    name: u.name,
+    //未购买时不生效;效果可自定义生效条件(如u1作用于上层)
+    isActive: (ctx) => u.effect!.isActive?.(ctx) ?? hasUpgrade(ctx.pos, u.id),
+  }
 }
 
-//------升级效果注册------
-//u1 点数作用:根据本层点数加成下层点数获取
-registerEffect('pointsGain', {
-  id: 'upgrade-1',
-  name: '点数作用',
-  order: 0,
-  apply(value, ctx) {
-    const higher = higherLayer(ctx.pos)
-    if (!higher || !hasUpgrade(higher, 1)) return value
-    return value.mul(getPoints(higher).add(1).pow(0.25))
-  },
-})
-//u2 自协同:本层每个维度的产量 x(该维度已购+1)
-registerUpgradeEffect('dimensionMult', 2, (value, ctx) => {
-  return value.mul(dimensionAmount(ctx.pos, ctx.id, 1).add(1))
-}, '自协同')
+//自动注册各升级的数值效果
+for (const u of UPGRADES) {
+  const e = upgradeEffect(u)
+  if (e) registerEffect(e)
+}
+
+/**某升级的效果文字(自定义优先,否则从效果自动生成) */
+export function upgradeEffectText(def: UpgradeDef, layer: LayerId): string {
+  if (def.effectText) return def.effectText(layer)
+  const e = upgradeEffect(def)
+  return e ? effectText(e, { pos: layer, id: 0 }) : ''
+}

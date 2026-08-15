@@ -16,7 +16,8 @@ export const PRESTIGE: prestigeFormula[] = [
       if (!isLayer0(layer)) {
         const layer1 = prevLayer(layer)
         const prestigeResource = getPoints(layer1)
-        return prestigeResource.div(10000).pow(0.5).floor()
+        if (isLayer0(layer1)) return prestigeResource.div(1e20).pow(0.125).floor()
+        else return prestigeResource.div(1e5).pow(0.25).floor()
       } else {
         return new Decimal(0)
       }

@@ -4,7 +4,7 @@
 
 ## 一、项目概述
 
-- 增量游戏（idle game），含多层重置：**ω^ω 个常规层级** + 未来 4 个元重置层（无限/奇点/树/序数，未实现）。
+- 增量游戏（idle game），含多层重置：**ω^ω 个常规层级** + 未来 5 个元重置层（无限/奇点/树/天体/序数，未实现）。
 - 层级玩法类似《反物质维度》：每层有维度生产资源，高层重置清低层并获得点数。
 - 单机本地运行，无联网机制。
 
@@ -40,6 +40,7 @@ access/   # 只读访问 player 的便捷函数(含层级0特殊处理)
 compute/  # 只读计算,不写状态
   effects.ts    # 加成管道(核心)
   dimensions.ts # 维度公式/产量
+  energy.ts     # 能量加成:高层能量给低层维度随时间递增加成
   prestige.ts   # 重置收益
   upgrades.ts   # 升级定义 u1-u9 与效果注册
   buyables.ts   # 可购买 b11-b13 与效果注册
@@ -71,24 +72,42 @@ tools → data → save/access → compute → logic → meta → ui
 ```
 
 三条铁律：
+
 1. **`compute` 层只读**：计算函数只读状态并返回结果，绝不写状态。
 2. **依赖单向**：`meta` 向 compute 注册加成分、向 logic 注册行为；compute/logic 不 import meta。
 3. **重置先算后写**：doReset 先算收益再统一写状态。
 
 ### 加成管道（effects.ts，核心机制）
 
-所有数值加成统一走管道，任意函数可注册（add/mult/pow/分段/软上限都行）：
+所有数值加成统一走管道。效果以**数据声明**（target/type/槽位），计算、统计、描述自动派生，新机制只需注册声明，不用改核心公式：
 
 ```ts
-type EffectTarget = 'dimensionCost' | 'dimensionMult' | 'dimensionExponent'
-  | 'production' | 'pointsGain' | 'resetGain' | 'upgradeCost'
-interface EffectModifier { id: string; name?: string; order: number; apply(value, ctx): Decimal }
-registerEffect(target, modifier)   // 模块顶层注册
-calculate(target, ctx, base)       // 按 order 依次 apply
-getEffects(target)                 // 查已注册列表(统计页用)
+// 效果定义(注册时自动补 id/name)
+interface EffectDef {
+  target: string // 主目标或子目标(如 'b11:base')
+  type: 'add' | 'mul' | 'exp' | 'custom'
+  value?(ctx, base?, amount?, current?): DecimalSource
+  base?: EffectSlot // 可调参数槽位(底数/指数/等级),可被子目标修饰
+  amount?: EffectSlot // 等级槽位(仅维度/可购买)
+  text?: string // 文字模板:{value}{base}{basePercent}{amount}
+  order?: number // 覆盖默认优先级
+  isActive?(ctx): boolean // 生效条件,缺省始终生效
+}
+interface EffectSlot {
+  target: string // 子目标标识,其他效果可对其实施修饰
+  init(ctx): DecimalSource
+}
 ```
 
-新机制只需 `registerEffect`，不用改核心公式。`EffectContext = { pos: LayerId, id: number }`。
+- `type` 语义：`add`→值+value、`mul`→值×value、`exp`→值^value、`custom`→替换为 value。
+- `value` 缺省时 `mul→base^amount`、`add→base×amount`（需声明 base+amount 槽位）；取整写在 value 内部。
+- **两阶段管道**：先组合槽位（`slotValue`，初始值上依序应用子目标效果），再按类型优先级合并主效果。
+- **优先级**：add→mul→exp→custom（`order` 可覆盖）。
+- **自动注册**：`UPGRADES`/`BUYABLES` 数组内直接带 `effect` 字段，模块加载时循环 `registerEffect`；id 全局唯一（重复即抛错）。
+- **按 id 引用加成数值**：`effectById(id)` / `effectValueById(id, ctx)`（未注册返回 1），如 `energyBonus` 内部即 `effectValueById('energy', ...)`。
+- 派生函数：`calculate`（总效果）/ `effectBreakdown`+`slotBreakdown`（统计明细）/ `effectText`+`renderText`（描述模板）。
+
+`EffectContext = { pos: LayerId, id: number }`。
 
 ## 五、层级系统
 
@@ -102,20 +121,25 @@ getEffects(target)                 // 查已注册列表(统计页用)
 ## 六、已实现系统
 
 ### 1. 升级（compute/upgrades.ts）
-- 注册表 `UPGRADES: UpgradeDef[]`（id/name/description/order/cost/effectText/isUnlocked/requires）。
+
+- 注册表 `UPGRADES: UpgradeDef[]`（id/name/description/order/cost/effect?/effectText?/isUnlocked/requires），数值效果经 `effect` 字段声明并自动注册。
 - 通用升级 u1-u9，显示于阶 0 层（层级0 只出现 u2/u3）：
-  - u1 点数作用（下层点数获取×(点数+1)^0.25）、u2 自协同（每维度×(该维度已购+1)）、u3 加速升级（解锁 b13）
+  - u1 点数作用（下层点数获取×对数式加成 (ln(点数)+1)^2，指数为 `u1:base` 槽位）、u2 自协同（每维度×(该维度已购+1)）、u3 额外加速器（向 `b11:amount` 槽位加 floor(已购维度总等级×0.1+升级数量)）
   - u4 自动化1、u5 自动化2、u6 自动重置（解锁自动化，见下）
   - u7 能量保留、u8 升级保留、u9 软重置（层级2+）
 - 一次性购买，三态（无法购买/可购买/已购买）；`requires` 控制顺序（u5→u4、u6→u5、u8→u7、u9→u8）。
-- 效果经 `registerUpgradeEffect(target, id, apply, name)` 注册（购买后生效，重置清空升级自动失效）。
+- 效果声明在 `effect` 字段，自动注册时注入 `isActive`（本层购买后生效，重置清空升级自动失效）；u1 例外——其生效条件是"上层已购买 u1"。
+- u3 作用于加速器等级槽位 `b11:amount`：免费加速器等级 = floor(已购维度总等级×0.1 + 升级数量)；b11 按"已购+免费"生效。
 
 ### 2. 可购买（compute/buyables.ts）
-- `BUYABLES: BuyableDef[]`：b11 加速器、b12 加倍器、b13 加速器加成。
+
+- `BUYABLES: BuyableDef[]`：b11 加速器、b12 加倍器、b13 加速器加成；效果经 `effect` 字段声明并自动注册（b11/b12 为 `base^amount`，b13 对 `b11:base` 做加法修饰）。
 - `cost(layer, n)`：n 为已购数（统一接口，见 buying.ts）。
-- b13 的 `onBuy`：清空本层点数/维度/加速器/加倍器（一次性）。
+- b13 由**成就 a21** 解锁（达成后一次性所有层级可用），`onBuy` 清空本层点数/维度/加速器/加倍器（一次性）。
+- b11 的加速器等级计入 u3 提供的免费等级（等级槽位 `b11:amount` 组合值 = 已购+免费）。
 
 ### 3. 自动化（logic/automations.ts）
+
 - **注册表模式**：`AUTOMATIONS: AutomationDef[]`（dims/buyables/reset 三个定义）。
 - `AutomationDef`：`id/name/defaultCfg/isUnlocked/isActive/setAll/onTick`。
 - 解锁：层 L 的维度自动化=**上层**买 u4；可购买=**上层**买 u5；自动重置=**本层**买 u6。
@@ -124,36 +148,47 @@ getEffects(target)                 // 查已注册列表(统计页用)
 - 自动重置条件：时间（用 `prevLayer` 的 resetTime，因为重置清下层）/ 点数 / 倍率，`combine: any|all`；point/mult 为 Decimal。
 
 ### 4. 购买数量统一（compute/buying.ts）
+
 - `BuyableItem`：`amount()` + `cost(n)`（n=已购数，与现状一致）。
 - `sumCost(item, k)`：最后 3 项近似（超指数下前项可忽略，允许误差）。
 - `maxBuyable(item, budget)`：从 2 开始平方倍增上界 + 数值二分（`mid.floor()` 保证整数）+ 微调，循环带 2000 上界。只依赖 cost 单调，支持软上限/分段/改价。
 
 ### 5. 成就 + 知识（logic/achievements.ts）
-- `registerAchievement`，已注册 a11-a18；解锁发日志(progress) + 知识奖励。
+
+- `registerAchievement`，已注册 a11-a18、a21；解锁发日志(progress) + 知识奖励。
 - 知识：`player.knowledge`（Decimal）；≥10 永久解锁知识标签。
 - 成就页每行 8 个，已解锁绿色，悬停 tooltip 显示描述。
 
 ### 6. 存档（save/save.ts）
+
 - **新格式**：`stringify` 用 `markDecimals` 深度遍历把 Decimal → `{$d: 字符串}`；读档 `unmarkDecimals` 只还原 `$d`，普通字符串不误转（成就 id 等安全）。
 - 校验码 `check` 被 `0 &&` 禁用（策划说之后换更简单的实现）。
 - 防穿越：lastPlay/firstPlay 时间校验；`seed` 字段已存，rng.ts 已实现但可玩性随机尚未接入（新闻用 Math.random）。
 - 开发期不考虑旧档迁移（migration.ts 为空）。
 
 ### 7. 设置/主题/统计/关于
+
 - `settings.ts`：主题（THEMES 列表 + cycleTheme，加新主题需改 themeType + style.css 变量）、新闻开关、日志开关、自动保存间隔、日志类型过滤（独立 localStorage，不进存档）。
 - 主题：`body.dark/light` class + CSS 变量（style.css `:root`/`body.light`）。组件颜色全部用 `var(--...)`。
-- options 页子界面：设置/关于游戏（版本+更新记录）/统计（时间+各 target 加成来源）。
+- options 页子界面：设置/关于游戏（版本+更新记录）/统计（时间 + 加成明细树：当前层逐维度总乘数/总指数及各来源，可下拉展开到槽位底数/数量及其修饰来源）。
 
 ### 8. UI 与布局
+
 - 导航栏标签数据驱动（`navigatorBar.vue`）：层级/选项/成就常显；知识(≥10知识解锁)；挑战(isActive([3]))；自动化(hasAnyUpgrade(4))；元层(meta registry isUnlocked)。
 - 断点 700px：窄屏/矮屏中区改纵向，导航横向可换行、日志底部限高。
 - 按钮体系：**类型 class 决定大小**（subTab/prestige/buyable/upgrade/mainTab/toggle），**状态 class 决定颜色**（selected/affordable/bought/toggle-on/toggle-off/meta），全局在 style.css。
 - 日志：相同类型+文本合并计数、按类型过滤、清空按钮。
 
 ### 9. 主循环（core.ts）
+
 - `mainLoop`（setTimeout 30fps）：暂停检测→离线检测→warpTime 消耗→`gameLoop(dt)`。
 - `gameLoop`：累计时间 → `updateLayers`（含 resetTime 累加）→ 元层 onTick → `updateAutomations` → `updateAchievements`。
 - `autoSaveLoop` 每 `settings.autoSaveInterval` 秒保存。
+
+### 10. 重置公式与能量系统
+
+- 重置收益（compute/prestige.ts）：层1 = `floor((点数0/1e16)^0.1)`；层2+ = `floor((点数_{k-1}/1e4)^0.25)`。首次重置各层恰好 +1 点，低指数削减挂机优势。
+- 能量系统（compute/energy.ts）：层 k 维度1 产能量，层 k 能量给层 k-1 所有维度 `×(1+E_k)^q`（q=`ENERGY_BONUS_EXPONENT`，存于 `energy:base` 槽位可被升级/挑战修改），沿层级链向上传导，是点数攀升到 1e308 的主力乘区。
 
 ## 七、未实现 / 待办
 

@@ -1,7 +1,7 @@
 //挑战注册表
 import Decimal from 'break_eternity.js'
 import type { Layer, LayerId } from '@/data/types'
-import type { EffectModifier } from '@/compute/effects'
+import type { EffectDef } from '@/compute/effects'
 
 /**挑战的所属重置层，'normal'为常规层级，其余为元层id */
 export type ChallengeLayer = 'normal' | string
@@ -14,7 +14,7 @@ export interface ChallengeDef {
   /**进入挑战时执行重置的对象，元层格式为{meta:'infinity'} */
   resetTarget: LayerId | { meta: string }
   /**挑战期间生效的静态加成 */
-  effects: EffectModifier[]
+  effects: EffectDef[]
   /**是否已解锁 */
   isUnlocked(): boolean
   /**完成目标 */

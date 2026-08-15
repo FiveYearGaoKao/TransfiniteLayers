@@ -88,7 +88,7 @@ a {
   text-shadow: 1px 1px var(--shadow);
 }
 .freeLevel {
-  font-size: 14px;
+  /* font-size: 14px; */
   color: #ff7f00;
 }
 .mainText {

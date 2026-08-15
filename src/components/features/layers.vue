@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { format, formatWhole } from '@/tools/format'
-import { getLayer, getLayerName, dimensionAmount } from '@/access'
+import { getLayer, getLayerName, dimensionAmount, prevLayer } from '@/access'
 import { getLayerIndex, getLayerOrder, isLayer0, shiftLayer } from '@/tools/ordinal'
 import { dimensionCost, dimensionExponent, dimensionMultiplier } from '@/compute/dimensions'
 import { getBuyables, isUnlocked as isBuyableUnlocked } from '@/compute/buyables'
 import { getUpgrades, isUnlocked as isUpgradeUnlocked } from '@/compute/upgrades'
+import { energyBonus } from '@/compute/energy'
 import { buyDimension, canAfford } from '@/logic/purchase'
 import { dimsAutoUnlocked, isAutoItem, toggleAutoItem } from '@/logic/automations'
 import { canReset, resetGain } from '@/compute/prestige'
@@ -41,6 +42,8 @@ const layerList = computed(() => {
 const selectedLayer = computed(() => {
   return getLayer(player.layerSubtab)
 })
+/**当前层能量给低层维度的加成数值 */
+const layerEnergyBonus = computed(() => energyBonus(player.layerSubtab))
 /**当前层级可显示的可购买 */
 const buyableList = computed(() =>
   getBuyables(getLayerOrder(player.layerSubtab)).filter((b) =>
@@ -81,8 +84,10 @@ const upgradeList = computed(() =>
     </span>
     <span v-if="!isLayer0(player.layerSubtab)" class="text"
       >你有<span class="text-highlight">{{ format(selectedLayer?.energy ?? 0) }} </span
-      >{{ getLayerName(player.layerSubtab) }}能量
-    </span>
+      >{{ getLayerName(player.layerSubtab) }}能量，使{{
+        getLayerName(prevLayer(player.layerSubtab))
+      }}维度生产 <span class="text-highlight">x{{ format(layerEnergyBonus) }}</span></span
+    >
 
     <br />
     <div id="dimensionTable">

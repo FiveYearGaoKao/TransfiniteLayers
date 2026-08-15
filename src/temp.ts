@@ -6,6 +6,6 @@ export const temp = reactive({
   tempLayers: {} as LayerList,
   /**伪现实速度 */
   psdSpeed: computed(() => {
-    return new Decimal(1)
+    return new Decimal(10)
   }),
 })

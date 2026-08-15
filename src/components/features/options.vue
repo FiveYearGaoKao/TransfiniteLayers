@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { formatTime } from '@/tools/format'
+import { computed, reactive, ref } from 'vue'
+import Decimal from 'break_eternity.js'
+import { formatTime, format } from '@/tools/format'
 import { player } from '@/data/player'
 import { hardReset, importSaveString, exportSaveString, localSave } from '@/save/save'
 import { settings, saveSettings, cycleTheme, THEMES } from '@/settings'
 import { type logType } from '@/log'
-import { gameVersion } from '@/data/constants'
+import { gameVersion, DIMENSION_COUNT } from '@/data/constants'
 import { CHANGELOG } from '@/data/changelog'
-import { getEffects, type EffectTarget } from '@/compute/effects'
+import {
+  effectBreakdown,
+  slotBreakdown,
+  type EffectSlot,
+  type EffectType,
+  type RegisteredEffect,
+} from '@/compute/effects'
+import { getLayerName } from '@/access'
+import type { LayerId } from '@/data/types'
 
 type optionsTab = 'settings' | 'about' | 'statistics'
 const subtab = ref<optionsTab>('settings')
@@ -51,16 +60,113 @@ function toggleLogType(t: logType) {
   settings.logFilter[t] = !settings.logFilter[t]
   saveSettings()
 }
-/**各数值点的加成来源(用于统计页) */
-const effectTargets: EffectTarget[] = [
-  'dimensionCost',
-  'dimensionMult',
-  'dimensionExponent',
-  'production',
-  'pointsGain',
-  'resetGain',
-  'upgradeCost',
+/**统计页:数值点定义 */
+interface StatTargetDef {
+  target: string
+  /**是否按维度区分为多行 */
+  perDim: boolean
+  /**总值前显示的符号 */
+  sign: string
+  label: (id: number) => string
+}
+const statDefs: StatTargetDef[] = [
+  { target: 'dimensionMult', perDim: true, sign: 'x', label: (i: number) => `维度${i + 1}乘数` },
+  { target: 'dimensionExponent', perDim: true, sign: '', label: (i: number) => `维度${i + 1}指数` },
+  { target: 'pointsGain', perDim: false, sign: 'x', label: () => '点数获取' },
+  { target: 'resetGain', perDim: false, sign: 'x', label: () => '重置收益' },
 ]
+/**效果作用方式的符号 */
+function opSign(type: EffectType): string {
+  return type == 'mul' ? 'x' : type == 'add' ? '+' : type == 'exp' ? '^' : ''
+}
+/**统计明细的可折叠树节点 */
+interface StatNode {
+  key: string
+  label: string
+  sign: string
+  value: Decimal
+  children: StatNode[]
+}
+/**效果来源明细转节点列表 */
+function statNodes(
+  parts: { e: RegisteredEffect; value: Decimal }[],
+  parentKey: string,
+  pos: LayerId,
+  id: number,
+): StatNode[] {
+  return parts.map((p) => {
+    const key = `${parentKey}:${p.e.id}`
+    const children: StatNode[] = []
+    if (p.e.base) children.push(statSlot(p.e.base, '底数', `${key}:base`, pos, id))
+    if (p.e.amount) children.push(statSlot(p.e.amount, '数量', `${key}:amount`, pos, id))
+    return { key, label: p.e.name ?? p.e.id, sign: opSign(p.e.type), value: p.value, children }
+  })
+}
+/**槽位节点:初始值 + 各修饰来源 */
+function statSlot(slot: EffectSlot, label: string, key: string, pos: LayerId, id: number): StatNode {
+  const ctx = { pos, id }
+  const b = slotBreakdown(slot, ctx)
+  return {
+    key,
+    label,
+    sign: '',
+    value: b.total,
+    children: [
+      { key: `${key}:init`, label: '初始值', sign: '', value: new Decimal(slot.init(ctx)), children: [] },
+      ...statNodes(b.parts, key, pos, id),
+    ],
+  }
+}
+/**根节点 */
+function statRoot(sd: StatTargetDef, id: number, pos: LayerId): StatNode {
+  const b = effectBreakdown(sd.target, { pos, id })
+  const key = `${sd.target}:${id}`
+  return { key, label: sd.label(id), sign: sd.sign, value: b.total, children: statNodes(b.parts, key, pos, id) }
+}
+/**当前层级的根节点列表 */
+const rootNodes = computed<StatNode[]>(() => {
+  const pos = player.layerSubtab
+  const nodes: StatNode[] = []
+  for (const sd of statDefs) {
+    const ids = sd.perDim ? Array.from({ length: DIMENSION_COUNT }, (_, i) => i) : [0]
+    for (const id of ids) nodes.push(statRoot(sd, id, pos))
+  }
+  return nodes
+})
+/**已展开的节点key */
+const expanded = reactive(new Set<string>())
+/**切换某节点的展开状态 */
+function toggle(key: string) {
+  if (expanded.has(key)) expanded.delete(key)
+  else expanded.add(key)
+}
+/**展开状态下的拍平行 */
+interface FlatRow {
+  key: string
+  label: string
+  sign: string
+  value: Decimal
+  depth: number
+  hasChildren: boolean
+}
+const flatTree = computed<FlatRow[]>(() => {
+  const out: FlatRow[] = []
+  const walk = (nodes: StatNode[], depth: number) => {
+    for (const n of nodes) {
+      out.push({
+        key: n.key,
+        label: n.label,
+        sign: n.sign,
+        value: n.value,
+        depth,
+        hasChildren: n.children.length > 0,
+      })
+      if (expanded.has(n.key)) walk(n.children, depth + 1)
+    }
+  }
+  walk(rootNodes.value, 0)
+  return out
+})
 </script>
 <template>
   <div id="options">
@@ -149,12 +255,21 @@ const effectTargets: EffectTarget[] = [
       <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span>
       <span class="text">加速时间: {{ formatTime(player.warpTime) }}</span>
       <div class="section">
-        <span class="text bold">加成来源</span>
-        <div v-for="target in effectTargets" :key="target" class="section">
-          <span class="text">{{ target }}</span>
-          <span v-for="m in getEffects(target)" :key="m.id" class="text"
-            >{{ m.name ?? m.id }}(order {{ m.order }})
-          </span>
+        <span class="text bold">加成明细 · 当前层级 {{ getLayerName(player.layerSubtab) }}</span>
+        <div class="statTree">
+          <div
+            v-for="row in flatTree"
+            :key="row.key"
+            class="statRow"
+            :class="{ clickable: row.hasChildren }"
+            :style="{ paddingLeft: row.depth * 18 + 'px' }"
+            @click="row.hasChildren && toggle(row.key)"
+          >
+            <span class="text">
+              <span class="statArrow">{{ row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·' }}</span
+              >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -190,5 +305,28 @@ textarea {
   color: var(--dim);
   border: 1px solid var(--faint);
   padding: 4px;
+}
+/*加成明细树*/
+div.statTree {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 260px;
+}
+div.statRow {
+  cursor: default;
+  width: 100%;
+  padding: 1px 4px;
+}
+div.statRow.clickable {
+  cursor: pointer;
+}
+div.statRow.clickable:hover {
+  background-color: var(--hover);
+}
+span.statArrow {
+  display: inline-block;
+  width: 14px;
+  color: var(--dim);
 }
 </style>
