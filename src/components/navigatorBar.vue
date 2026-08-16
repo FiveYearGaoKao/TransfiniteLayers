@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { player, type mainTabs } from '@/data/player'
-import { hasAnyUpgrade, isActive } from '@/access'
+import { hasAchievement, hasAnyUpgrade } from '@/access'
 import { getMetaLayers } from '@/meta/registry'
 
 interface tabInfo {
@@ -20,7 +20,7 @@ const tabs = computed(() => {
   if (player.knowledgeUnlocked) {
     list.push({ id: 'knowledge', name: '知识', meta: false })
   }
-  if (isActive([3])) {
+  if (hasAchievement('a28')) {
     list.push({ id: 'challenges', name: '挑战', meta: false })
   }
   if (hasAnyUpgrade(4)) {

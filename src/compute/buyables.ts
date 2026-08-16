@@ -3,7 +3,6 @@ import Decimal from 'break_eternity.js'
 import type { LayerId } from '@/data/types'
 import { getBase, getLayer, hasAchievement } from '@/access'
 import { initializeDimensions } from '@/data/types'
-import { isLayer0 } from '@/tools/ordinal'
 import { format } from '@/tools/format'
 import {
   effectText,
@@ -57,7 +56,8 @@ export const BUYABLES: BuyableDef[] = [
     description: '点数获取x{base}，效果叠乘',
     order: 0,
     cost(_layer: LayerId, n: Decimal): Decimal {
-      return new Decimal(getBase()).pow(2).mul(new Decimal(2).pow(n.mul(n)))
+      //10^[n*(1+0.1*n)+1]
+      return new Decimal(getBase()).pow(n.mul(n.mul(0.1).add(1)).add(2)).floor()
     },
     effect: {
       target: 'pointsGain',
@@ -72,9 +72,9 @@ export const BUYABLES: BuyableDef[] = [
     name: '加速器加成',
     description: '使加速器的效果+2%，效果叠加',
     order: 0,
-    isUnlocked: (_layer: LayerId) => hasAchievement('a21'),
+    isUnlocked: (_layer: LayerId) => hasAchievement('a22'),
     cost(_layer: LayerId, n: Decimal): Decimal {
-      return new Decimal(10).pow(n.mul(n.add(1)).div(2).add(10))
+      return new Decimal(getBase()).pow(n.mul(n.add(1)).div(2).add(1).mul(getBase()).mul(4))
     },
     effect: {
       target: 'b11:base',
@@ -87,7 +87,7 @@ export const BUYABLES: BuyableDef[] = [
     onBuy(layer: LayerId) {
       const L = getLayer(layer)
       if (!L) return
-      L.points = new Decimal(isLayer0(layer) ? 1 : 0)
+      L.points = new Decimal(1)
       initializeDimensions(L)
       L.buyables[11] = new Decimal(0)
       L.buyables[12] = new Decimal(0)

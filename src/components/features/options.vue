@@ -103,7 +103,13 @@ function statNodes(
   })
 }
 /**槽位节点:初始值 + 各修饰来源 */
-function statSlot(slot: EffectSlot, label: string, key: string, pos: LayerId, id: number): StatNode {
+function statSlot(
+  slot: EffectSlot,
+  label: string,
+  key: string,
+  pos: LayerId,
+  id: number,
+): StatNode {
   const ctx = { pos, id }
   const b = slotBreakdown(slot, ctx)
   return {
@@ -112,7 +118,13 @@ function statSlot(slot: EffectSlot, label: string, key: string, pos: LayerId, id
     sign: '',
     value: b.total,
     children: [
-      { key: `${key}:init`, label: '初始值', sign: '', value: new Decimal(slot.init(ctx)), children: [] },
+      {
+        key: `${key}:init`,
+        label: '初始值',
+        sign: '',
+        value: new Decimal(slot.init(ctx)),
+        children: [],
+      },
       ...statNodes(b.parts, key, pos, id),
     ],
   }
@@ -121,7 +133,13 @@ function statSlot(slot: EffectSlot, label: string, key: string, pos: LayerId, id
 function statRoot(sd: StatTargetDef, id: number, pos: LayerId): StatNode {
   const b = effectBreakdown(sd.target, { pos, id })
   const key = `${sd.target}:${id}`
-  return { key, label: sd.label(id), sign: sd.sign, value: b.total, children: statNodes(b.parts, key, pos, id) }
+  return {
+    key,
+    label: sd.label(id),
+    sign: sd.sign,
+    value: b.total,
+    children: statNodes(b.parts, key, pos, id),
+  }
 }
 /**当前层级的根节点列表 */
 const rootNodes = computed<StatNode[]>(() => {
@@ -266,7 +284,9 @@ const flatTree = computed<FlatRow[]>(() => {
             @click="row.hasChildren && toggle(row.key)"
           >
             <span class="text">
-              <span class="statArrow">{{ row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·' }}</span
+              <span class="statArrow">{{
+                row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·'
+              }}</span
               >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
             </span>
           </div>
@@ -317,6 +337,7 @@ div.statRow {
   cursor: default;
   width: 100%;
   padding: 1px 4px;
+  transition: all 200ms;
 }
 div.statRow.clickable {
   cursor: pointer;

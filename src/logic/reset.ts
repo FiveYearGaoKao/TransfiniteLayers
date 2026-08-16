@@ -1,12 +1,13 @@
 //进行重置
 import Decimal from 'break_eternity.js'
 import { initializeDimensions, initializeLayer, type LayerId } from '@/data/types'
-import { getLayer, highestActiveLayer, prevLayer } from '@/access'
+import { getLayer, hasAchievement, highestActiveLayer, prevLayer } from '@/access'
 import { getLayerIndex, getLayerOrder, isLayer0, nextLayer, shiftLayer } from '@/tools/ordinal'
 import { canReset, resetGain } from '@/compute/prestige'
 import { hasUpgrade } from '@/compute/upgrades'
 import { player } from '@/data/player'
 import { temp } from '@/temp'
+import { checkResetAchievements } from './achievements'
 
 /**重置选项 */
 interface ResetOptions {
@@ -21,12 +22,15 @@ export function resetData(layer: LayerId, opts: ResetOptions = {}) {
   const L = getLayer(layer)
   if (L) {
     const keepUpgrades = opts.keepUpgrades ?? false
-    const keepBuyables = opts.keepUpgrades ?? false
-    L.points = isLayer0(layer) ? new Decimal(1) : new Decimal(0)
+    let points = isLayer0(layer) ? new Decimal(1) : new Decimal(0)
+    if (hasAchievement('a24')) points = Decimal.max(points, 1)
+    L.points = points
     L.totalPoints = new Decimal(0)
+    L.bestPoints = new Decimal(0)
+    L.resetCount = new Decimal(0)
     L.energy = new Decimal(0)
     L.resetTime = new Decimal(0)
-    if (!keepBuyables) L.buyables = {}
+    L.buyables = {}
     if (!keepUpgrades) L.upgrades = []
     initializeDimensions(L)
   }
@@ -48,14 +52,18 @@ function resetProgress(layer: LayerId) {
 export function doReset(layer: LayerId, forced: boolean = false, gainResource: boolean = true) {
   if (forced || canReset(layer)) {
     if (isLayer0(layer)) return
+    const L = getLayer(layer)
+    //先算收益并判定重置瞬间成就(须在清空能量/重置下层之前,且不计级联强制重置)
+    const gain = gainResource && L?.active ? resetGain(layer) : new Decimal(0)
+    if (gainResource && L?.active && !forced) checkResetAchievements(layer, gain)
     //晋升:顶层重置(点击/自动重置)同时重置本层自身进度
     if (!forced) resetProgress(layer)
-    const L = getLayer(layer)
     //获得本层级资源
     if (gainResource && L && L.active) {
-      const gain = resetGain(layer)
       L.points = L.points.add(gain)
       L.totalPoints = L.totalPoints.add(gain)
+      L.resetCount = L.resetCount.add(1)
+      L.bestPoints = L.bestPoints.max(gain)
     }
     //重置前面的层级
     const prev = prevLayer(layer)

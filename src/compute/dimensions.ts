@@ -15,7 +15,7 @@ export const DIMENSIONS: dimensionInfo[] = [
   {
     cost(_layer: LayerId, id: number, n: Decimal): Decimal {
       // 价格公式为 B^(a+b*n)
-      const base = new Decimal(id * 2)
+      const base = new Decimal(id)
       const increment = new Decimal(id + 1)
       return new Decimal(getBase()).pow(increment.mul(n).add(base))
     },

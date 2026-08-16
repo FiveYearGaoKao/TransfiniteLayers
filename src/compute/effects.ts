@@ -108,9 +108,14 @@ export function slotValue(slot: EffectSlot, ctx: EffectContext): Decimal {
   return value
 }
 
-/**组合槽位并附上各修饰来源的明细(统计用) */
+/**获取某个目标当前生效的效果(统计页只显示生效加成) */
+function activeEffects(target: string, ctx: EffectContext): RegisteredEffect[] {
+  return getEffects(target).filter((e) => !e.isActive || e.isActive(ctx))
+}
+
+/**组合槽位并附上各生效修饰来源的明细(统计用,未生效的效果不列出) */
 export function slotBreakdown(slot: EffectSlot, ctx: EffectContext) {
-  const parts = getEffects(slot.target).map((e) => ({ e, value: effectValue(e, ctx) }))
+  const parts = activeEffects(slot.target, ctx).map((e) => ({ e, value: effectValue(e, ctx) }))
   return { total: slotValue(slot, ctx), parts }
 }
 
@@ -154,9 +159,9 @@ export function calculate(target: string, ctx: EffectContext, base: DecimalSourc
   return value
 }
 
-/**统计某个数值点:总效果与各来源明细 */
+/**统计某个数值点:总效果与各生效来源明细(未生效的效果不列出) */
 export function effectBreakdown(target: string, ctx: EffectContext, base: DecimalSource = 1) {
-  const parts = getEffects(target).map((e) => ({ e, value: effectValue(e, ctx) }))
+  const parts = activeEffects(target, ctx).map((e) => ({ e, value: effectValue(e, ctx) }))
   return { total: calculate(target, ctx, base), parts }
 }
 

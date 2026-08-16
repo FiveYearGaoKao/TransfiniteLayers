@@ -6,8 +6,14 @@ export interface Layer {
   level: Decimal
   points: Decimal
   energy: Decimal
+  /**已获得的总点数 */
   totalPoints: Decimal
+  /**通过重置获得的最高点数 */
+  bestPoints: Decimal
+  /**自被更高级重置以来经过的时间(单位:秒) */
   resetTime: Decimal
+  /**自被更高级重置以来点击重置按钮的次数 */
+  resetCount: Decimal
   upgrades: number[]
   buyables: Record<number, Decimal>
   /**第一项为总数，第二项为购买数量*/
@@ -32,7 +38,9 @@ export function initializeLayer(level: DecimalSource, isLayer0: boolean = false)
     points: isLayer0 ? new Decimal(1) : new Decimal(0),
     energy: new Decimal(0),
     totalPoints: new Decimal(0),
+    bestPoints: new Decimal(0),
     resetTime: new Decimal(0),
+    resetCount: new Decimal(0),
     upgrades: [],
     buyables: {},
     dimensions: [],

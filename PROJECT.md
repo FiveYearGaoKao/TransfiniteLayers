@@ -50,7 +50,7 @@ logic/    # 写状态
   reset.ts      # 重置引擎(doReset/resetData)
   purchase.ts   # 购买(维度/可购买/升级)
   automations.ts# 自动化注册表与执行
-  achievements.ts # 成就注册表 a11-a18
+  achievements.ts # 成就注册表
   challenges.ts # 挑战注册表(空)
 meta/     # 元重置层注册表(空)
 core.ts   # 主循环 mainLoop/autoSaveLoop
@@ -126,16 +126,16 @@ interface EffectSlot {
 - 通用升级 u1-u9，显示于阶 0 层（层级0 只出现 u2/u3）：
   - u1 点数作用（下层点数获取×对数式加成 (ln(点数)+1)^2，指数为 `u1:base` 槽位）、u2 自协同（每维度×(该维度已购+1)）、u3 额外加速器（向 `b11:amount` 槽位加 floor(已购维度总等级×0.1+升级数量)）
   - u4 自动化1、u5 自动化2、u6 自动重置（解锁自动化，见下）
-  - u7 能量保留、u8 升级保留、u9 软重置（层级2+）
+  - u7 能量保留、u8 升级保留、u9 软重置（层级2+，目前被禁用）
 - 一次性购买，三态（无法购买/可购买/已购买）；`requires` 控制顺序（u5→u4、u6→u5、u8→u7、u9→u8）。
 - 效果声明在 `effect` 字段，自动注册时注入 `isActive`（本层购买后生效，重置清空升级自动失效）；u1 例外——其生效条件是"上层已购买 u1"。
-- u3 作用于加速器等级槽位 `b11:amount`：免费加速器等级 = floor(已购维度总等级×0.1 + 升级数量)；b11 按"已购+免费"生效。
+- u3 作用于加速器等级槽位 `b11:amount`：免费加速器等级 = floor(已购维度总等级×0.2 + 升级数量)；b11 按"已购+免费"生效。
 
 ### 2. 可购买（compute/buyables.ts）
 
 - `BUYABLES: BuyableDef[]`：b11 加速器、b12 加倍器、b13 加速器加成；效果经 `effect` 字段声明并自动注册（b11/b12 为 `base^amount`，b13 对 `b11:base` 做加法修饰）。
 - `cost(layer, n)`：n 为已购数（统一接口，见 buying.ts）。
-- b13 由**成就 a21** 解锁（达成后一次性所有层级可用），`onBuy` 清空本层点数/维度/加速器/加倍器（一次性）。
+- b13 由**成就 a22** 解锁（达成后一次性所有层级可用），`onBuy` 清空本层点数/维度/加速器/加倍器（一次性）。
 - b11 的加速器等级计入 u3 提供的免费等级（等级槽位 `b11:amount` 组合值 = 已购+免费）。
 
 ### 3. 自动化（logic/automations.ts）
@@ -155,7 +155,7 @@ interface EffectSlot {
 
 ### 5. 成就 + 知识（logic/achievements.ts）
 
-- `registerAchievement`，已注册 a11-a18、a21；解锁发日志(progress) + 知识奖励。
+- `registerAchievement`，已注册 a11-a22；解锁发日志(progress) + 知识奖励。
 - 知识：`player.knowledge`（Decimal）；≥10 永久解锁知识标签。
 - 成就页每行 8 个，已解锁绿色，悬停 tooltip 显示描述。
 

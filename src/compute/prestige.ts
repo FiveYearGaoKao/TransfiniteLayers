@@ -16,8 +16,10 @@ export const PRESTIGE: prestigeFormula[] = [
       if (!isLayer0(layer)) {
         const layer1 = prevLayer(layer)
         const prestigeResource = getPoints(layer1)
-        if (isLayer0(layer1)) return prestigeResource.div(1e20).pow(0.125).floor()
-        else return prestigeResource.div(1e5).pow(0.25).floor()
+        const gain = isLayer0(layer1)
+          ? prestigeResource.div(1e16).pow(0.125)
+          : prestigeResource.div(1e4).pow(0.25)
+        return gain.gte(1) ? gain : new Decimal(0)
       } else {
         return new Decimal(0)
       }
@@ -31,7 +33,7 @@ export function resetGain(layer: LayerId): Decimal {
   value = calculate('resetGain', { pos: layer, id: 0 }, value)
   //非层级0的层的重置收益即点数获取，应用点数获取类的加成
   if (!isLayer0(layer)) value = calculate('pointsGain', { pos: layer, id: 0 }, value)
-  return value
+  return value.floor()
 }
 /**判断层级能否重置 */
 export function canReset(layer: LayerId): boolean {

@@ -64,6 +64,7 @@ function showTip(def: AchievementDef, e: MouseEvent) {
       :style="{ left: tip.x + 'px', top: tip.y + 'px' }"
     >
       {{ tip.def.description }}
+      <div v-if="tip.def.effectText" class="effect">{{ tip.def.effectText }}</div>
     </div>
   </Teleport>
 </template>
@@ -119,6 +120,10 @@ div.achievementTip {
   max-width: 260px;
   font-size: 12px;
   pointer-events: none;
+}
+div.achievementTip .effect {
+  color: var(--good-border);
+  margin-top: 2px;
 }
 div.story {
   border: 2px solid var(--faint);
