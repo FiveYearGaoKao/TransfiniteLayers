@@ -75,7 +75,7 @@ const upgradeList = computed(() =>
       v-if="!isLayer0(player.layerSubtab)"
       @click="doReset(player.layerSubtab)"
     >
-      +{{ resetGain(player.layerSubtab) }} {{ getLayerName(player.layerSubtab) }}点数
+      +{{ formatWhole(resetGain(player.layerSubtab)) }} {{ getLayerName(player.layerSubtab) }}点数
     </button>
 
     <span v-if="!isLayer0(player.layerSubtab)" class="text"

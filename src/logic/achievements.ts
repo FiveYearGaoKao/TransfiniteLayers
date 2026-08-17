@@ -2,6 +2,7 @@
 import Decimal, { type DecimalSource } from 'break_eternity.js'
 import { player } from '@/data/player'
 import {
+  challengeCompletions,
   dimensionAmount,
   getEnergy,
   getLayer,
@@ -152,7 +153,7 @@ const achievements: AchievementDef[] = [
     reward: 8,
     isCompleted: () => false,
     onReset: (layer, gain) =>
-      compareLayer(layer, [1]) == 0 && getEnergy([1]).lte(0) && new Decimal(gain).gte(100),
+      compareLayer(layer, [1]) == 0 && getEnergy([1]).eq(0) && new Decimal(gain).gte(100),
     effect: {
       target: 'energy:base',
       type: 'add',
@@ -168,6 +169,80 @@ const achievements: AchievementDef[] = [
     reward: 10,
     isCompleted: () => getPoints([0]).gte(1e100),
     effectText: '解锁挑战',
+  },
+  {
+    id: 'a31',
+    name: '简单',
+    description: '完成挑战1',
+    reward: 5,
+    isCompleted: () => challengeCompletions('c1').gte(1),
+  },
+  {
+    id: 'a32',
+    name: '一样简单',
+    description: '完成挑战2',
+    reward: 5,
+    isCompleted: () => challengeCompletions('c2').gte(1),
+  },
+  {
+    id: 'a33',
+    name: '全速前进',
+    description: '从层级0的加速器中获得至少x9.007e15的加成',
+    reward: 15,
+    isCompleted: () => false,
+    effect: {
+      target: 'b11:base',
+      type: 'add',
+      value: () => 0.01,
+      text: '加速器底数+{value}',
+    },
+    effectText: '加速器底数 +0.01',
+  },
+  {
+    id: 'a34',
+    name: '还有多少层?',
+    description: '获得至少1个层级3点数',
+    reward: 15,
+    isCompleted: () => getPoints([3]).gte(1),
+  },
+  {
+    id: 'a35',
+    name: '我需要重置吗',
+    description: '第1次层级1重置获得10000点数',
+    reward: 15,
+    isCompleted: () => false,
+    onReset: (layer, gain) =>
+      compareLayer(layer, [1]) == 0 &&
+      (getLayer([1])?.resetCount.eq(0) ?? false) &&
+      new Decimal(gain).gte(1e4),
+  },
+  {
+    id: 'a36',
+    name: '失败者',
+    description: '在挑战4中购买不该买的东西导致挑战失败',
+    reward: 1,
+    isCompleted: () => false,
+  },
+  {
+    id: 'a37',
+    name: '它有用吗?',
+    description: '购买层级1的加速器加成',
+    reward: 20,
+    isCompleted: () => buyableAmount([1], 13).gte(1),
+    effect: {
+      target: 'b11:amount',
+      type: 'add',
+      value: (ctx) => new Decimal(10).mul(buyableAmount(ctx.pos, 13)),
+      text: '免费加速器数量+{value}',
+    },
+    effectText: '每个加速器加成提供10个免费的加速器',
+  },
+  {
+    id: 'a38',
+    name: '无限!',
+    description: '拥有至少1.79e308层级0点数',
+    reward: 25,
+    isCompleted: () => getPoints([0]).gte(Decimal.dNumberMax),
   },
 ]
 

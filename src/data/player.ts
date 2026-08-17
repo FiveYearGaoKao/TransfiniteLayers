@@ -38,6 +38,12 @@ export interface Player {
   knowledgeUnlocked: boolean
   /**各层级的自动化配置 */
   automations: Record<string, LayerAutomation>
+  /**各挑战的完成次数 */
+  challenges: Record<string, Decimal>
+  /**当前激活的挑战(可叠加) */
+  activeChallenges: string[]
+  /**挑战页当前子标签 */
+  challengeTab: string
 }
 export type playerKey = keyof Player
 
@@ -66,6 +72,9 @@ export function initializeSave(): Player {
     knowledge: new Decimal(0),
     knowledgeUnlocked: false,
     automations: {},
+    challenges: {},
+    activeChallenges: [],
+    challengeTab: 'normal',
   }
   return player
 }

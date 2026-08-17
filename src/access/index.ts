@@ -148,3 +148,11 @@ export function hasAnyUpgrade(id: number): boolean {
 export function hasAchievement(id: string): boolean {
   return player.achievements.includes(id)
 }
+/**某挑战是否正在激活(可叠加) */
+export function isChallengeActive(id: string): boolean {
+  return player.activeChallenges.includes(id)
+}
+/**某挑战的完成次数 */
+export function challengeCompletions(id: string): Decimal {
+  return player.challenges[id] || new Decimal(0)
+}

@@ -23,6 +23,7 @@
 ```
 tools/    # 纯函数、零依赖
   ordinal.ts    # 层级坐标/序数运算(纯函数)
+  softCap.ts    # 对数软上限纯函数(超指数价格)
   format.ts     # 数字/时间格式化
   utils.ts      # 随机数、比较、版本
 data/     # 类型与常量
@@ -42,6 +43,7 @@ compute/  # 只读计算,不写状态
   dimensions.ts # 维度公式/产量
   energy.ts     # 能量加成:高层能量给低层维度随时间递增加成
   prestige.ts   # 重置收益
+  softCap.ts    # 软上限阈值(含C4奖励)+应用入口
   upgrades.ts   # 升级定义 u1-u9 与效果注册
   buyables.ts   # 可购买 b11-b13 与效果注册
   buying.ts     # 统一购买数量计算(sumCost/maxBuyable)
@@ -51,7 +53,7 @@ logic/    # 写状态
   purchase.ts   # 购买(维度/可购买/升级)
   automations.ts# 自动化注册表与执行
   achievements.ts # 成就注册表
-  challenges.ts # 挑战注册表(空)
+  challenges.ts # 挑战注册表(c1-c5)与进入/完成逻辑
 meta/     # 元重置层注册表(空)
 core.ts   # 主循环 mainLoop/autoSaveLoop
 settings.ts # 设置(主题/开关,独立 localStorage)
@@ -105,6 +107,7 @@ interface EffectSlot {
 - **优先级**：add→mul→exp→custom（`order` 可覆盖）。
 - **自动注册**：`UPGRADES`/`BUYABLES` 数组内直接带 `effect` 字段，模块加载时循环 `registerEffect`；id 全局唯一（重复即抛错）。
 - **按 id 引用加成数值**：`effectById(id)` / `effectValueById(id, ctx)`（未注册返回 1），如 `energyBonus` 内部即 `effectValueById('energy', ...)`。
+- **效果禁用**：`registerEffectDisabler(effectId, fn)` 注册禁用器（fn 返回 true 时该效果被跳过），用于挑战激活时临时禁用某效果（如 C1 禁 b11、C2 禁 b12）；`effectValue`/`applyEffect`/`activeEffects` 均跳过被禁用效果。
 - 派生函数：`calculate`（总效果）/ `effectBreakdown`+`slotBreakdown`（统计明细）/ `effectText`+`renderText`（描述模板）。
 
 `EffectContext = { pos: LayerId, id: number }`。
@@ -134,7 +137,8 @@ interface EffectSlot {
 ### 2. 可购买（compute/buyables.ts）
 
 - `BUYABLES: BuyableDef[]`：b11 加速器、b12 加倍器、b13 加速器加成；效果经 `effect` 字段声明并自动注册（b11/b12 为 `base^amount`，b13 对 `b11:base` 做加法修饰）。
-- `cost(layer, n)`：n 为已购数（统一接口，见 buying.ts）。
+- `cost(layer, n)`：n 为已购数（统一接口，见 buying.ts）；**原始公式只写软上限之前的部分**，声明 `softCap?: { power? }` 字段的可购买（b11）在 `buyableCostAt` 获取价格时统一套对数软上限（见 compute/softCap.ts）。
+- b12 价格为 `10^[n·(1+q·n)+2]`（超指数），q 存 `b12:quad` 槽位，可被挑战 C2 奖励降低。
 - b13 由**成就 a22** 解锁（达成后一次性所有层级可用），`onBuy` 清空本层点数/维度/加速器/加倍器（一次性）。
 - b11 的加速器等级计入 u3 提供的免费等级（等级槽位 `b11:amount` 组合值 = 已购+免费）。
 
@@ -188,27 +192,46 @@ interface EffectSlot {
 ### 10. 重置公式与能量系统
 
 - 重置收益（compute/prestige.ts）：层1 = `floor((点数0/1e16)^0.1)`；层2+ = `floor((点数_{k-1}/1e4)^0.25)`。首次重置各层恰好 +1 点，低指数削减挂机优势。
-- 能量系统（compute/energy.ts）：层 k 维度1 产能量，层 k 能量给层 k-1 所有维度 `×(1+E_k)^q`（q=`ENERGY_BONUS_EXPONENT`，存于 `energy:base` 槽位可被升级/挑战修改），沿层级链向上传导，是点数攀升到 1e308 的主力乘区。
+- 能量系统（compute/energy.ts）：层 k 维度1 产能量，层 k 能量给层 k-1 所有维度 `×(1+E_k)^q`（q=`ENERGY_BONUS_EXPONENT`，存于 `energy:base` 槽位可被升级/挑战修改），沿层级链向上传导，是点数攀升到 1e308 的主力乘区；**挑战 C3 激活时改为 `ln(1+E_k)`**。
+
+### 11. 挑战（logic/challenges.ts）
+
+- **注册表模式**：`CHALLENGES: ChallengeDef[]`，已实现 **c1-c5**（普通挑战），数值均为占位符（待平衡）。
+- `ChallengeDef`：`id/name/description/layer/unlockLayer/resetTarget/goal(k)/disableEffects/effects/rewardEffects/rewardText`。
+- **目标公式统一等比** `goal(k) = G0·R^k`（单调、易求逆，为后续"批量完成"预留）；目标资源默认 = `prevLayer(resetTarget)` 的点数；`unlockLayer` = 达到该层即解锁。
+- **流程**：`enterChallenge(id)` 强制重置目标层（`doReset(..., forceClearUpgrades=true)`，无视 u7/u8）并记录 `activeChallenges`；进行中可"提前退出"（不计完成）；目标达成后"完成并退出"→ 完成次数 +1 并强制重置目标层。
+- **惩罚/奖励经 effects 管道**：`disableEffects` 通过 `registerEffectDisabler` 禁用指定效果（如 c1 禁 `buyable-11`、c2 禁 `buyable-12`）；`effects` 为挑战激活期间的惩罚效果（如 c2 点数获取 ×0.5^resetCount）；`rewardEffects` 在完成次数 >0 后永久生效。
+- **C5 每帧效果**：`applyChallengeEffects(layer, pos, dt)` 在 update.ts 每层调用——除最高已解锁层级外，0 阶层级每秒损失 10% 的维度/点数/能量。
+- 各挑战要点：c1 无加速器（奖励免费加速器 +5/次）；c2 无加倍器（奖励 b12 价格增速降低）；c3 能量衰弱（奖励能量指数 +0.05/次）；c4 立即折算（价格视为多购买，奖励推迟软上限）；c5 维度蒸发（奖励产量 ×(1+resetTime)^√完成数）。
+- **UI**（components/features/challenges.vue）：子标签行（普通/无限/奇点/树/序数，后三者待元层）+ 卡片三态按钮（进入/提前退出红色/完成并退出绿色，卡片尺寸固定）。
+
+### 12. 价格软上限（tools/softCap.ts + compute/softCap.ts）
+
+- **纯函数** `tools/softCap.ts`：`softCapValue(value, threshold, power=2)`——低于阈值原样返回；高于阈值时对价格的**对数**做幂次放大 `10^(L·(log10(value)/L)^power)`，价格呈**超指数**增长（log ∝ n^power）。
+- **游戏侧** `compute/softCap.ts`：`softCapThreshold()` 读 `softCap:base` 槽位（基准 1e100，被 C4 奖励 ×10^完成数 提升以延迟软上限）；`softCap(value, power?)` 是调纯函数的门面。
+- **应用点**：维度在 `dimensionCostAt` 统一套；可购买在其 `cost` 声明 `softCap` 字段后在 `buyableCostAt` 套。**约定：cost 公式只写原始部分，软上限在获取价格处集中套用**，保证"显示=支付=购买计算"一致，且新物品默认一致地接受策略。
 
 ## 七、未实现 / 待办
 
-- **挑战系统**（logic/challenges.ts 空）：挑战页子标签（普通/无限/奇点/树/序数）、进入执行对应重置。
+- **挑战**：普通挑战 c1-c5 已实现（数值待平衡）；无限/奇点/树/序数挑战待元层实现后添加。
+- **挑战"批量完成"**：`maxCompletions` 已预留（目标等比可二分），待对应升级解锁。
 - **知识购买**：目前知识只解锁标签，无购买内容（加成/QoL/离线时间）。
 - **连点器 / 自动机**：自动化页预留（知识解锁）。
 - **元层**（meta/registry.ts 空）：无限/奇点/树/序数。
 - **平衡性调整**。
-- 校验码新实现、种子随机接入、剧情 STORY 填充、挑战/元层效果注册。
+- 校验码新实现、种子随机接入、剧情 STORY 填充、元层效果注册。
 
 ## 八、代码约定（务必遵守）
 
 1. **中文注释**；每个新函数前加**中文 jsDoc** 注释。
-2. **注册表模式**：DIMENSIONS / BUYABLES / UPGRADES / achievements / AUTOMATIONS 都是"定义数组 + 访问函数"。
+2. **注册表模式**：DIMENSIONS / BUYABLES / UPGRADES / achievements / AUTOMATIONS / CHALLENGES 都是"定义数组 + 访问函数"。
 3. 依赖方向单向；compute 层只读。
-4. 数字用 `Decimal`（break_eternity），禁止裸 number 存大数。
-5. 存档结构改动需处理 `initializeSave` + load 兜底（必要时 migration）。
-6. UI 新颜色用 `var(--...)` 主题变量；按钮用"类型 + 状态"双 class。
-7. 修改前先看相关文件现状；改完跑 `npm run type-check`、`npm run lint`、`npm run build`。
-8. 与策划歧义时以《超限层级》策划文档.md 为准，并询问用户确认。
+4. **与存档/效果无关的纯函数放 `tools/`**（如 `softCapValue`）；读效果槽/玩家状态的游戏侧包装放 `compute/`。
+5. 数字用 `Decimal`（break_eternity），禁止裸 number 存大数。
+6. 存档结构改动需处理 `initializeSave` + load 兜底（必要时 migration）。
+7. UI 新颜色用 `var(--...)` 主题变量；按钮用"类型 + 状态"双 class。
+8. 修改前先看相关文件现状；改完跑 `npm run type-check`、`npm run lint`、`npm run build`。
+9. 与策划歧义时以《超限层级》策划文档.md 为准，并询问用户确认。
 
 ## 九、快速上手建议
 

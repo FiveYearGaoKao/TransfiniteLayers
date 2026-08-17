@@ -1,9 +1,10 @@
 //维度的计算(只读)
 import Decimal from 'break_eternity.js'
 import type { LayerId } from '@/data/types'
-import { dimensionAmount, getBase } from '@/access'
+import { buyableTotalBought, dimensionAmount, dimensionTotalBought, getBase, isChallengeActive } from '@/access'
 import { getLayerOrder, isLayer0 } from '@/tools/ordinal'
 import { calculate } from './effects'
+import { softCap } from './softCap'
 import './energy'
 
 interface dimensionInfo {
@@ -25,7 +26,14 @@ export const DIMENSIONS: dimensionInfo[] = [
 /**已购n个时某维度的价格 */
 export function dimensionCostAt(layer: LayerId, id: number, n: Decimal): Decimal {
   const order = Math.min(getLayerOrder(layer), DIMENSIONS.length - 1)
-  const base = DIMENSIONS[order]?.cost(layer, id, n) || Decimal.dInf
+  const formula = DIMENSIONS[order]?.cost
+  if (!formula) return Decimal.dInf
+  //挑战C4:购买任何东西都使价格视为多购买1次(偏移量=本层购买总数)
+  let n2 = n
+  if (isChallengeActive('c4')) {
+    n2 = n.add(dimensionTotalBought(layer).add(buyableTotalBought(layer)))
+  }
+  const base = softCap(formula(layer, id, n2))
   return calculate('dimensionCost', { pos: layer, id }, base)
 }
 /**获取某维度的价格 */

@@ -84,6 +84,9 @@ function load(s: string): number {
     if (!player.achievements) player.achievements = []
     if (!player.knowledge) player.knowledge = new Decimal(0)
     if (!player.automations) player.automations = {}
+    if (!player.challenges) player.challenges = {}
+    if (!player.activeChallenges) player.activeChallenges = []
+    if (!player.challengeTab) player.challengeTab = 'normal'
     if (getLayer(player.layerSubtab) == null) player.layerSubtab = [0]
     seedRng(player.seed)
     return 0

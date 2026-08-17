@@ -1,9 +1,10 @@
 //可购买的定义与计算
 import Decimal from 'break_eternity.js'
 import type { LayerId } from '@/data/types'
-import { getBase, getLayer, hasAchievement } from '@/access'
+import { buyableTotalBought, dimensionTotalBought, getBase, getLayer, hasAchievement, isChallengeActive } from '@/access'
 import { initializeDimensions } from '@/data/types'
 import { format } from '@/tools/format'
+import { softCap } from './softCap'
 import {
   effectText,
   registerEffect,
@@ -22,6 +23,8 @@ export interface BuyableDef {
   order: number
   /**已购n个时下一个的价格 */
   cost(layer: LayerId, n: Decimal): Decimal
+  /**是否对该可购买的价格应用软上限(可选power覆盖默认) */
+  softCap?: { power?: number }
   /**数值效果(声明式,可省略) */
   effect?: EffectDef
   /**购买效果的文字说明(缺省从effect自动生成) */
@@ -42,6 +45,7 @@ export const BUYABLES: BuyableDef[] = [
     cost(_layer: LayerId, n: Decimal): Decimal {
       return new Decimal(getBase()).pow(n.div(2).add(1)).floor()
     },
+    softCap: {},
     effect: {
       target: 'dimensionMult',
       type: 'mul',
@@ -56,8 +60,9 @@ export const BUYABLES: BuyableDef[] = [
     description: '点数获取x{base}，效果叠乘',
     order: 0,
     cost(_layer: LayerId, n: Decimal): Decimal {
-      //10^[n*(1+0.1*n)+1]
-      return new Decimal(getBase()).pow(n.mul(n.mul(0.1).add(1)).add(2)).floor()
+      //10^[n*(1+q*n)+2],q为b12:quad槽位(可被挑战C2奖励降低)
+      const quad = slotValue({ target: 'b12:quad', init: () => 0.1 }, { pos: _layer, id: 0 })
+      return new Decimal(getBase()).pow(n.mul(n.mul(quad).add(1)).add(2)).floor()
     },
     effect: {
       target: 'pointsGain',
@@ -117,7 +122,15 @@ export function isUnlocked(layer: LayerId, id: number): boolean {
 export function buyableCostAt(layer: LayerId, id: number, n: Decimal): Decimal {
   const def = getBuyable(id)
   if (!def) return Decimal.dInf
-  return def.cost(layer, n)
+  //挑战C4:除加速器加成(b13)外,购买任何东西都使价格视为多购买1次(偏移量=本层购买总数)
+  let n2 = n
+  if (isChallengeActive('c4') && id != 13) {
+    n2 = n.add(dimensionTotalBought(layer).add(buyableTotalBought(layer)))
+  }
+  const price = def.cost(layer, n2)
+  //声明了softCap的可购买在获取价格时统一套对数软上限(见compute/softCap)
+  if (def.softCap) return softCap(price, def.softCap.power)
+  return price
 }
 /**获取某可购买的成本 */
 export function buyableCost(layer: LayerId, id: number): Decimal {

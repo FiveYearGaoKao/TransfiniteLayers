@@ -48,6 +48,7 @@ See `PROJECT.md` for the full directory map and layer/reset design.
 ### Code style
 - **Chinese JSDoc comments above every new function**.
 - **Registry pattern** for all game systems: define an array (`UPGRADES`, `BUYABLES`, `AUTOMATIONS`, achievements), register at module level, query via accessor functions.
+- **Pure functions with no save/effect dependencies go in `tools/`** (e.g. `softCapValue`). Gameplay-aware wrappers (reading effect slots/player state) live in `compute/`.
 
 ## No tests
 This project has no test suite. Verify changes by running `npm run type-check && npm run lint && npm run build`.

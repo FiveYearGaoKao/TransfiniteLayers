@@ -48,8 +48,14 @@ function resetProgress(layer: LayerId) {
  * 点击重置按钮
  * @param forced 是否为强制重置(级联重置下层时用,此时不重置本层自身进度)
  * @param gainResource 是否获得资源
+ * @param forceClearUpgrades 是否无视升级u8强制清空下层升级(进入/退出挑战时用)
  */
-export function doReset(layer: LayerId, forced: boolean = false, gainResource: boolean = true) {
+export function doReset(
+  layer: LayerId,
+  forced: boolean = false,
+  gainResource: boolean = true,
+  forceClearUpgrades: boolean = false,
+) {
   if (forced || canReset(layer)) {
     if (isLayer0(layer)) return
     const L = getLayer(layer)
@@ -67,8 +73,10 @@ export function doReset(layer: LayerId, forced: boolean = false, gainResource: b
     }
     //重置前面的层级
     const prev = prevLayer(layer)
-    doReset(prev, true, gainResource)
-    resetData(prev, { keepUpgrades: hasUpgrade(layer, 8) })
+    doReset(prev, true, gainResource, forceClearUpgrades)
+    resetData(prev, {
+      keepUpgrades: !forceClearUpgrades && hasUpgrade(layer, 8),
+    })
     //如果是临时层级，则添加一个新层级
     if (layer.indexOf(-1) >= 0) {
       const n = getLayerOrder(layer)

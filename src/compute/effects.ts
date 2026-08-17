@@ -63,6 +63,29 @@ const registered: Record<string, RegisteredEffect[]> = {}
 /**已注册的效果,按id索引(便于按id引用某个加成数值) */
 const byId = new Map<string, RegisteredEffect>()
 
+/**效果禁用器:返回true时该效果失效(如挑战惩罚禁用某些效果) */
+const disablers = new Map<string, ((ctx: EffectContext) => boolean)[]>()
+
+/**
+ * 注册一个效果禁用器
+ * @param effectId 被禁用的效果id
+ * @param fn 禁用条件,返回true时该效果失效
+ */
+export function registerEffectDisabler(
+  effectId: string,
+  fn: (ctx: EffectContext) => boolean,
+) {
+  const list = disablers.get(effectId) || []
+  list.push(fn)
+  disablers.set(effectId, list)
+}
+
+/**某效果是否被禁用(任一禁用器返回true即禁用) */
+function isEffectDisabled(e: RegisteredEffect, ctx: EffectContext): boolean {
+  const list = disablers.get(e.id)
+  return list ? list.some((fn) => fn(ctx)) : false
+}
+
 /**类型默认优先级:加法→乘法→乘方→自定义 */
 const TYPE_PRIORITY: Record<EffectType, number> = { add: 0, mul: 1, exp: 2, custom: 3 }
 
@@ -110,7 +133,9 @@ export function slotValue(slot: EffectSlot, ctx: EffectContext): Decimal {
 
 /**获取某个目标当前生效的效果(统计页只显示生效加成) */
 function activeEffects(target: string, ctx: EffectContext): RegisteredEffect[] {
-  return getEffects(target).filter((e) => !e.isActive || e.isActive(ctx))
+  return getEffects(target).filter(
+    (e) => (!e.isActive || e.isActive(ctx)) && !isEffectDisabled(e, ctx),
+  )
 }
 
 /**组合槽位并附上各生效修饰来源的明细(统计用,未生效的效果不列出) */
@@ -121,6 +146,7 @@ export function slotBreakdown(slot: EffectSlot, ctx: EffectContext) {
 
 /**计算单个效果对中性基准的贡献值(未生效返回中性值) */
 export function effectValue(e: RegisteredEffect, ctx: EffectContext): Decimal {
+  if (isEffectDisabled(e, ctx)) return neutralValue(e.type)
   if (e.isActive && !e.isActive(ctx)) return neutralValue(e.type)
   const base = e.base ? slotValue(e.base, ctx) : undefined
   const amount = e.amount ? slotValue(e.amount, ctx) : undefined
@@ -132,6 +158,7 @@ export function effectValue(e: RegisteredEffect, ctx: EffectContext): Decimal {
 
 /**把一个效果应用到当前值 */
 function applyEffect(e: RegisteredEffect, value: Decimal, ctx: EffectContext): Decimal {
+  if (isEffectDisabled(e, ctx)) return value
   if (e.isActive && !e.isActive(ctx)) return value
   const base = e.base ? slotValue(e.base, ctx) : undefined
   const amount = e.amount ? slotValue(e.amount, ctx) : undefined
