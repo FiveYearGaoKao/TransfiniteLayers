@@ -37,7 +37,7 @@ const effectText = () => buyableEffectText(props.def, props.pos)
       <span class="text">{{ description() }}</span>
       <span class="text">{{ effectText() }}</span>
     </div>
-    <div class="row">
+    <div class="row tight">
       <button
         :class="['buyable', canBuyBuyable(props.pos, props.def.id) ? 'affordable' : '']"
         @click="buyBuyable(props.pos, props.def.id)"
@@ -48,6 +48,7 @@ const effectText = () => buyableEffectText(props.def, props.pos)
         v-if="buyablesAutoUnlocked(props.pos)"
         :class="[
           'toggle',
+          'compact',
           isAutoItem(props.pos, 'buyables', props.def.id) ? 'toggle-on' : 'toggle-off',
         ]"
         @click="toggleAutoItem(props.pos, 'buyables', props.def.id)"
@@ -58,6 +59,9 @@ const effectText = () => buyableEffectText(props.def, props.pos)
   </div>
 </template>
 <style scoped>
+.freeLevel {
+  color: #ff7f00;
+}
 div.buyableItem {
   display: flex;
   flex-direction: column;
@@ -73,22 +77,5 @@ div.buyableInfo {
 }
 span.name {
   font-size: 16px;
-}
-div.row {
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-}
-button.buyable {
-  width: 88px;
-  height: 26px;
-  font-size: 11px;
-}
-button.toggle {
-  width: 72px;
-  min-width: 0;
-  padding: 0 4px;
-  height: 26px;
-  font-size: 11px;
 }
 </style>

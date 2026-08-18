@@ -10,13 +10,12 @@
   --dim: #c0c0c0;
   --strong: #ffffff;
   --faint: #606060;
-  --disabled: #7f7f7f;
   --selected-bg: #484848;
   --hover: #303030;
-  --affordable-hover: #606060;
+  --selected-hover: #606060;
   --shadow: #a0a0a0;
-  --row-even: #777777;
-  --row-odd: #333333;
+  --dim-odd-bg: #333333;
+  --dim-even-bg: #777777;
   --input-bg: #101010;
   --meta-border: #c060e0;
   --meta-text: #e0a0f0;
@@ -29,6 +28,7 @@
   --bad-border: #cf3f3f;
   --bad-bg: #5f0000;
   --bad-hover: #7f0000;
+  --softcap: #606080;
 }
 body.light {
   --bg: #f0f0f0;
@@ -37,13 +37,12 @@ body.light {
   --dim: #404040;
   --strong: #101010;
   --faint: #909090;
-  --disabled: #808080;
   --selected-bg: #c0c0c0;
   --hover: #d8d8d8;
-  --affordable-hover: #b0b0b0;
+  --selected-hover: #b0b0b0;
   --shadow: #808080;
-  --row-even: #d0d0d0;
-  --row-odd: #e0e0e0;
+  --dim-odd-bg: #d0d0d0;
+  --dim-even-bg: #e0e0e0;
   --input-bg: #ffffff;
   --meta-border: #a050c0;
   --meta-text: #7a30a0;
@@ -56,6 +55,7 @@ body.light {
   --bad-border: #cf3f3f;
   --bad-bg: #f0c8c8;
   --bad-hover: #e0b0b0;
+  --softcap: #9090b0;
 }
 body {
   background-color: var(--bg);
@@ -66,10 +66,7 @@ body {
   margin: 0px;
   font-family: 'SourceHanSansSC';
 }
-/*文字类*/
-a {
-  color: blue;
-}
+/*------文字类------*/
 .text {
   font-size: 14px;
   color: var(--text);
@@ -78,34 +75,47 @@ a {
   font-weight: bold;
 }
 .softcapped {
-  color: #606080;
+  color: var(--softcap);
   font-weight: bold;
-  text-shadow: 1px 1px #51516b;
-}
-.text-highlight {
-  font-size: 18px;
-  color: var(--text);
   text-shadow: 1px 1px var(--shadow);
 }
-.freeLevel {
-  /* font-size: 14px; */
-  color: #ff7f00;
+/*------布局工具------*/
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
-.mainText {
+.row.tight {
+  gap: 2px;
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+.section.box {
+  border: 2px solid var(--dim);
+  padding: 6px;
+  margin-top: 0px;
+}
+.subtabRow {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+/*------表单控件------*/
+input,
+textarea,
+select {
+  background-color: var(--input-bg);
   color: var(--text);
-  font-size: 24px;
-  line-height: 100%;
+  border: 1px solid var(--dim);
 }
-.points {
-  color: var(--text);
-  font-size: 36px;
-  text-shadow: 1px 1px var(--shadow);
-}
-.pointProduction {
-  font-size: 14px;
-  color: var(--dim);
-}
-
 /*------按钮体系------*/
 /*按钮基础:默认颜色与通用行为*/
 button {
@@ -118,33 +128,30 @@ button {
   border-color: var(--dim);
   background-color: var(--panel);
   color: var(--dim);
+  cursor: pointer;
+}
+button:disabled {
   cursor: not-allowed;
 }
 button:hover:not(:disabled) {
   background-color: var(--hover);
-  cursor: pointer;
 }
-
-/*按钮状态:决定颜色*/
-button.selected,
-button.affordable {
+/*按钮状态:决定颜色(元素无关,可同时用于button与卡片div)*/
+.selected,
+.affordable {
   border-color: var(--strong);
   background-color: var(--selected-bg);
   color: var(--strong);
 }
 button.selected:hover:not(:disabled),
 button.affordable:hover:not(:disabled) {
-  background-color: var(--affordable-hover);
+  background-color: var(--selected-hover);
 }
 button.affordable:active {
   transform: scale(0.98, 0.98);
 }
-button.bought {
-  border-color: var(--good-border);
-  background-color: var(--good-bg);
-  color: var(--text);
-}
-button.toggle-on {
+.bought,
+.toggle-on {
   border-color: var(--good-border);
   background-color: var(--good-bg);
   color: var(--text);
@@ -152,12 +159,21 @@ button.toggle-on {
 button.toggle-on:hover:not(:disabled) {
   background-color: var(--good-hover);
 }
-button.toggle-off {
+.toggle-off {
   border-color: var(--bad-border);
   background-color: var(--bad-bg);
   color: var(--text);
 }
 button.toggle-off:hover:not(:disabled) {
+  background-color: var(--bad-hover);
+}
+/*危险操作(如硬重置)的红色样式*/
+.bad {
+  border-color: var(--bad-border);
+  background-color: var(--bad-bg);
+  color: var(--text);
+}
+button.bad:hover:not(:disabled) {
   background-color: var(--bad-hover);
 }
 /*元重置层的修饰颜色*/
@@ -173,7 +189,6 @@ button.meta.selected {
 button.meta:hover:not(:disabled) {
   background-color: var(--meta-hover);
 }
-
 /*按钮类型:决定大小与布局*/
 button.subTab {
   height: 28px;
@@ -184,8 +199,9 @@ button.prestige {
   height: 80px;
 }
 button.buyable {
-  width: 160px;
-  height: 32px;
+  width: 88px;
+  height: 26px;
+  font-size: 11px;
 }
 button.upgrade {
   display: flex;
@@ -205,25 +221,10 @@ button.toggle {
   height: 32px;
   min-width: 60px;
 }
-
-table.buyables {
-  margin: auto;
-  border: 0px;
-  font-size: 14px;
-  color: var(--text);
-  text-align: left;
-}
-tr.buyables {
-  height: 32px;
-  padding: 4px;
-}
-td {
-  padding: 0px;
-}
-div.upgrades {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  flex-wrap: wrap;
+button.toggle.compact {
+  width: 72px;
+  min-width: 0;
+  padding: 0 4px;
+  height: 26px;
+  font-size: 11px;
 }

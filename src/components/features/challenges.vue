@@ -52,7 +52,7 @@ function progressPercent(def: ChallengeDef): number {
 </script>
 <template>
   <div id="challenges">
-    <div id="subtabRow">
+    <div class="subtabRow">
       <button
         v-for="layer in subtabs"
         :key="layer"
@@ -123,11 +123,6 @@ div#challenges {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-}
-div#subtabRow {
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
 }
 div#challengeList {
   display: flex;

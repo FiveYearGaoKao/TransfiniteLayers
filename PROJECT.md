@@ -47,6 +47,7 @@ compute/  # 只读计算,不写状态
   upgrades.ts   # 升级定义 u1-u9 与效果注册
   buyables.ts   # 可购买 b11-b13 与效果注册
   buying.ts     # 统一购买数量计算(sumCost/maxBuyable)
+  knowledge.ts  # 知识升级定义/访问函数/伪现实速度计算
 logic/    # 写状态
   update.ts     # 主循环更新层级
   reset.ts      # 重置引擎(doReset/resetData)
@@ -54,12 +55,13 @@ logic/    # 写状态
   automations.ts# 自动化注册表与执行
   achievements.ts # 成就注册表
   challenges.ts # 挑战注册表(c1-c5)与进入/完成逻辑
+  knowledge.ts  # 知识购买行为(升级/离线时间兑换)
 meta/     # 元重置层注册表(空)
 core.ts   # 主循环 mainLoop/autoSaveLoop
 settings.ts # 设置(主题/开关,独立 localStorage)
 log.ts    # 日志
 news.ts   # 滚动新闻
-temp.ts   # 运行时缓存(临时层/tempLayers)
+temp.ts   # 运行时缓存(临时层/tempLayers/调试用伪现实速度初始值)
 components/
   features/  # 各页面: layers/options/achievements/knowledge/challenges/automation
   newsBar/resourceBar/navigatorBar/logBar/toolBar
@@ -157,10 +159,11 @@ interface EffectSlot {
 - `sumCost(item, k)`：最后 3 项近似（超指数下前项可忽略，允许误差）。
 - `maxBuyable(item, budget)`：从 2 开始平方倍增上界 + 数值二分（`mid.floor()` 保证整数）+ 微调，循环带 2000 上界。只依赖 cost 单调，支持软上限/分段/改价。
 
-### 5. 成就 + 知识（logic/achievements.ts）
+### 5. 成就 + 知识（logic/achievements.ts + compute/knowledge.ts）
 
 - `registerAchievement`，已注册 a11-a22；解锁发日志(progress) + 知识奖励。
-- 知识：`player.knowledge`（Decimal）；≥10 永久解锁知识标签。
+- 知识：`player.knowledge`（Decimal）；≥10 永久解锁知识标签；可兑换离线时间、购买知识升级。
+- **知识升级**（compute/knowledge.ts）：注册表 `KNOWLEDGE_UPGRADES`，可多次购买（有数量上限）、按类别分页，数值效果经 `effect` 字段声明并自动注册到加成管道；购买行为在 `logic/knowledge.ts` 复用 `buying.ts` 的统一购买数量计算。升级按前置条件链式解锁，展示规则：前置/条件不满足或满级加"隐藏已满级"时不显示，知识不足置灰，可一键购买最优数量。
 - 成就页每行 8 个，已解锁绿色，悬停 tooltip 显示描述。
 
 ### 6. 存档（save/save.ts）
@@ -172,9 +175,9 @@ interface EffectSlot {
 
 ### 7. 设置/主题/统计/关于
 
-- `settings.ts`：主题（THEMES 列表 + cycleTheme，加新主题需改 themeType + style.css 变量）、新闻开关、日志开关、自动保存间隔、日志类型过滤（独立 localStorage，不进存档）。
+- `settings.ts`：主题（THEMES 列表 + cycleTheme，加新主题需改 themeType + style.css 变量）、新闻开关、日志开关、自动保存间隔、日志类型过滤、知识页"隐藏已满级升级"开关（独立 localStorage，不进存档）。
 - 主题：`body.dark/light` class + CSS 变量（style.css `:root`/`body.light`）。组件颜色全部用 `var(--...)`。
-- options 页子界面：设置/关于游戏（版本+更新记录）/统计（时间 + 加成明细树：当前层逐维度总乘数/总指数及各来源，可下拉展开到槽位底数/数量及其修饰来源）。
+- options 页子界面：设置（偏好/调试/日志过滤/存档/硬重置，偏好区含"离线去向"开关）/关于游戏（版本+更新记录）/统计（时间 + 加成明细树：当前层逐维度总乘数/总指数及各来源，可下拉展开到槽位底数/数量及其修饰来源，含伪现实速度）。
 
 ### 8. UI 与布局
 
@@ -185,8 +188,8 @@ interface EffectSlot {
 
 ### 9. 主循环（core.ts）
 
-- `mainLoop`（setTimeout 30fps）：暂停检测→离线检测→warpTime 消耗→`gameLoop(dt)`。
-- `gameLoop`：累计时间 → `updateLayers`（含 resetTime 累加）→ 元层 onTick → `updateAutomations` → `updateAchievements`。
+- `mainLoop`（setTimeout 30fps）：暂停检测（暂停期间攒离线时间）→ 离线检测（距上一帧 > 阈值，按升级链产出时间）→ 在线分支（先加速后时间扭曲）→ `gameLoop(dt)`。
+- `gameLoop`：累计时间 → `dt × psdSpeed` → `updateLayers`（含 resetTime 累加）→ 元层 onTick → `updateAutomations` → `updateAchievements`。
 - `autoSaveLoop` 每 `settings.autoSaveInterval` 秒保存。
 
 ### 10. 重置公式与能量系统
@@ -211,11 +214,21 @@ interface EffectSlot {
 - **游戏侧** `compute/softCap.ts`：`softCapThreshold()` 读 `softCap:base` 槽位（基准 1e100，被 C4 奖励 ×10^完成数 提升以延迟软上限）；`softCap(value, power?)` 是调纯函数的门面。
 - **应用点**：维度在 `dimensionCostAt` 统一套；可购买在其 `cost` 声明 `softCap` 字段后在 `buyableCostAt` 套。**约定：cost 公式只写原始部分，软上限在获取价格处集中套用**，保证"显示=支付=购买计算"一致，且新物品默认一致地接受策略。
 
+### 13. 离线时间系统（core.ts + compute/knowledge.ts + components/features/knowledge.vue）
+
+- **资源**：`offlineTime`（离线时间，可储存货币，1 知识 = 60 秒兑换）与 `warpTime`（加速时间，供时间扭曲消耗）。
+- **时间扭曲**：`warpTime >= 1` 秒时**自动开启（无开关）**，每帧消耗 1% 并直接推进游戏时间，属于快速爆发式消耗。
+- **加速**：消耗 `offlineTime` 稳定提升伪现实速度——`speed-boost` 效果注册在 `psdSpeed` 目标上，值为 `boostSpeed`（预设倍率或自定义输入），生效条件 `boostActive`；离线时间不足时自动关闭并记 warning 日志。
+- **计算顺序**：加速**先于**时间扭曲——加速在未被扭曲放大的 dt 上按 `dt×(boostSpeed-1)` 消耗离线时间，从而节省离线时间消耗。
+- **离线产出**（距上一帧超过 `OFFLINE_THRESHOLD` 判定离线）：相关功能由"离线进度 → 离线去向 → 离线加速"的知识升级链逐级解锁，未购买时零产出；默认转为 `warpTime`，购买"离线去向"后可在**选项页偏好区**切换储存进 `offlineTime`（`player.offlineMode`）。
+- **暂停**：暂停期间时间储存为离线时间；暂停、时间流逝 1 帧等工具栏按钮由知识升级链解锁（未解锁时置灰）。
+- **伪现实速度**：`getPsdSpeed() = calculate('psdSpeed', {pos:[0],id:0}, temp.debugSpeed)`；初始值 `debugSpeed` 是不存档的调试输入（选项页设置区），统计页可按加成管道查看明细。
+
 ## 七、未实现 / 待办
 
 - **挑战**：普通挑战 c1-c5 已实现（数值待平衡）；无限/奇点/树/序数挑战待元层实现后添加。
 - **挑战"批量完成"**：`maxCompletions` 已预留（目标等比可二分），待对应升级解锁。
-- **知识购买**：目前知识只解锁标签，无购买内容（加成/QoL/离线时间）。
+- **知识购买**：知识升级与离线时间系统已实现（见 六.5/六.13）；连点器等更多类别待补充。
 - **连点器 / 自动机**：自动化页预留（知识解锁）。
 - **元层**（meta/registry.ts 空）：无限/奇点/树/序数。
 - **平衡性调整**。

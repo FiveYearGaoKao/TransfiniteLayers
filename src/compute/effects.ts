@@ -14,6 +14,7 @@ export type EffectTarget =
   | 'pointsGain'
   | 'resetGain'
   | 'upgradeCost'
+  | 'psdSpeed'
 
 /**计算加成时的上下文 */
 export interface EffectContext {
@@ -71,10 +72,7 @@ const disablers = new Map<string, ((ctx: EffectContext) => boolean)[]>()
  * @param effectId 被禁用的效果id
  * @param fn 禁用条件,返回true时该效果失效
  */
-export function registerEffectDisabler(
-  effectId: string,
-  fn: (ctx: EffectContext) => boolean,
-) {
+export function registerEffectDisabler(effectId: string, fn: (ctx: EffectContext) => boolean) {
   const list = disablers.get(effectId) || []
   list.push(fn)
   disablers.set(effectId, list)
@@ -205,6 +203,11 @@ export function renderText(template: string, e: RegisteredEffect, ctx: EffectCon
 
 /**效果的默认文字 */
 export function effectText(e: RegisteredEffect, ctx: EffectContext): string {
-  const defaults: Record<EffectType, string> = { add: '+{value}', mul: 'x{value}', exp: '^{value}', custom: '{value}' }
+  const defaults: Record<EffectType, string> = {
+    add: '+{value}',
+    mul: 'x{value}',
+    exp: '^{value}',
+    custom: '{value}',
+  }
   return renderText(e.text ?? defaults[e.type], e, ctx)
 }

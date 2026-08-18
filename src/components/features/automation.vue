@@ -50,7 +50,7 @@ function parseDecimal(v: string): Decimal {
 </script>
 <template>
   <div id="automation">
-    <div id="subtabRow">
+    <div class="subtabRow">
       <button class="subTab selected">内部自动化</button>
     </div>
     <div id="autoHeader">
@@ -71,7 +71,7 @@ function parseDecimal(v: string): Decimal {
     </div>
 
     <template v-for="def in AUTOMATIONS" :key="def.id">
-      <div v-if="def.isUnlocked(selectedPos)" class="card">
+      <div v-if="def.isUnlocked(selectedPos)" class="card section box">
         <span class="text bold">{{ def.name }}</span>
         <div class="row">
           <button
@@ -99,7 +99,7 @@ function parseDecimal(v: string): Decimal {
               {{ buyCfg(def.id).buyAmount == 'one' ? '买1个' : '买最大' }}
             </button>
           </div>
-          <div v-if="def.id == 'dims'" class="row wrap">
+          <div v-if="def.id == 'dims'" class="row">
             <button
               v-for="i in dimCount"
               :key="i"
@@ -109,7 +109,7 @@ function parseDecimal(v: string): Decimal {
               维度{{ i }}:{{ isAutoItem(selectedPos, 'dims', i - 1) ? '开' : '关' }}
             </button>
           </div>
-          <div v-if="def.id == 'buyables'" class="row wrap">
+          <div v-if="def.id == 'buyables'" class="row">
             <button
               v-for="b in buyableList"
               :key="b.id"
@@ -179,45 +179,16 @@ div#automation {
   align-items: center;
   gap: 8px;
 }
-div#subtabRow {
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
-}
 div#autoHeader {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 6px;
 }
-select {
-  background-color: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--dim);
-}
 div.card {
-  border: 2px solid var(--dim);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 6px;
 }
-div.row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-}
-div.row.wrap {
-  flex-wrap: wrap;
-  justify-content: center;
-}
-input[type='number'],
-input:not([type]) {
+input {
   width: 100px;
-  background-color: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--dim);
 }
 </style>

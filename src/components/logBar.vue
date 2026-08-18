@@ -22,10 +22,12 @@ const filteredLogs = computed(() => logs.filter((l) => settings.logFilter[l.type
 </template>
 <style scoped>
 div#logBar {
-  border: 2px solid var(--dim);
+  border-left: 2px solid var(--dim);
+  border-right: 2px solid var(--dim);
   margin: 0px;
   width: 300px;
   height: 100%;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;

@@ -22,12 +22,20 @@ export interface Settings {
   theme: themeType
   /**是否显示滚动新闻 */
   showNews: boolean
+  /**是否显示工具栏 */
+  showToolBar: boolean
+  /**是否自动保存 */
+  autoSave: boolean
   /**自动保存间隔(秒) */
   autoSaveInterval: number
   /**是否显示日志栏 */
   showLog: boolean
   /**各类型日志是否显示 */
   logFilter: Record<logType, boolean>
+  /**知识页是否隐藏已满级的知识升级 */
+  hideMaxedKnowledge: boolean
+  /**普通重置前是否二次确认 */
+  resetConfirm: boolean
 }
 
 /**默认设置 */
@@ -35,9 +43,13 @@ export function defaultSettings(): Settings {
   return {
     theme: 'dark',
     showNews: true,
+    showToolBar: true,
+    autoSave: true,
     autoSaveInterval: 10,
     showLog: true,
     logFilter: { info: true, warning: true, error: true, progress: true, automator: true },
+    hideMaxedKnowledge: true,
+    resetConfirm: true,
   }
 }
 

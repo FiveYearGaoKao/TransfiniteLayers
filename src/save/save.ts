@@ -2,12 +2,83 @@
 import Decimal, { type DecimalSource } from 'break_eternity.js'
 import { compressToBase64, decompressFromBase64 } from 'lz-string'
 import { player, type Player, initializeSave } from '@/data/player'
-import { gameName, gameVersion } from '@/data/constants'
+import { gameName, gameVersion, DEFAULT_BOOST_SPEED, SAVE_SLOT_COUNT } from '@/data/constants'
 import { getLayer } from '@/access'
 import { seedRng } from './rng'
 import { migrate } from './migration'
 import { check } from './checksum'
 import { addLog } from '@/log'
+
+//------存档槽位------
+const CURRENT_SLOT_KEY = gameName + '-slot'
+let currentSlot = 0
+
+/**恢复上次使用的存档槽位(启动时调用) */
+export function loadSlotChoice() {
+  const n = Number(localStorage.getItem(CURRENT_SLOT_KEY))
+  if (Number.isInteger(n) && n >= 0 && n < SAVE_SLOT_COUNT) currentSlot = n
+}
+/**获取当前存档槽位 */
+export function getCurrentSlot(): number {
+  return currentSlot
+}
+/**设置当前存档槽位并持久化 */
+export function setCurrentSlot(slot: number) {
+  if (slot >= 0 && slot < SAVE_SLOT_COUNT) {
+    currentSlot = slot
+    localStorage.setItem(CURRENT_SLOT_KEY, String(slot))
+  }
+}
+
+/**单个存档槽位的摘要信息 */
+export interface SlotSummary {
+  /**槽位序号 */
+  slot: number
+  /**该槽位是否有存档 */
+  exists: boolean
+  /**游戏时长(秒) */
+  totalTime: Decimal
+  /**层级0点数(总点数) */
+  points: Decimal
+  /**已解锁的成就数 */
+  achievements: number
+  /**存档版本 */
+  version: string
+}
+
+/**读取指定槽位的摘要,槽位为空或存档损坏时返回exists=false */
+export function getSlotSummary(slot: number): SlotSummary {
+  const res: SlotSummary = {
+    slot,
+    exists: false,
+    totalTime: new Decimal(0),
+    points: new Decimal(0),
+    achievements: 0,
+    version: '',
+  }
+  const s = localStorage.getItem(gameName + '-save' + slot)
+  if (s == null) return res
+  try {
+    const saveFile = parse(decompressFromBase64(s) || 'null')
+    if (saveFile == null || typeof saveFile != 'object') return res
+    res.exists = true
+    res.totalTime = new Decimal(saveFile.totalTime ?? 0)
+    res.points = new Decimal(saveFile.layers?.['0']?.points ?? 0)
+    res.achievements = saveFile.achievements?.length ?? 0
+    res.version = saveFile.version ?? ''
+  } catch {
+    //存档损坏时按空槽位处理
+  }
+  return res
+}
+/**获取全部存档槽位的摘要 */
+export function getSlotSummaries(): SlotSummary[] {
+  return Array.from({ length: SAVE_SLOT_COUNT }, (_, i) => getSlotSummary(i))
+}
+/**指定槽位是否存在存档记录(无论内容是否有效) */
+export function hasSlotSave(slot: number): boolean {
+  return localStorage.getItem(gameName + '-save' + slot) != null
+}
 
 //------修改存档------
 /**player中类型为Decimal的属性名 */
@@ -83,6 +154,16 @@ function load(s: string): number {
     if (!(player.seed >= 0)) player.seed = 0
     if (!player.achievements) player.achievements = []
     if (!player.knowledge) player.knowledge = new Decimal(0)
+    if (!player.knowledgeUnlocked) player.knowledgeUnlocked = false
+    if (!player.knowledgeUpgrades) player.knowledgeUpgrades = {}
+    if (
+      player.offlineMode != 'warp' &&
+      player.offlineMode != 'store' &&
+      player.offlineMode != 'ask'
+    )
+      player.offlineMode = 'warp'
+    if (!player.boostActive) player.boostActive = false
+    if (!player.boostSpeed) player.boostSpeed = new Decimal(DEFAULT_BOOST_SPEED)
     if (!player.automations) player.automations = {}
     if (!player.challenges) player.challenges = {}
     if (!player.activeChallenges) player.activeChallenges = []
@@ -93,11 +174,11 @@ function load(s: string): number {
   }
 }
 /**保存存档到本地存储 */
-export function localSave(slot: number = 0) {
+export function localSave(slot: number = currentSlot) {
   localStorage.setItem(gameName + '-save' + slot, stringify())
 }
 /**从本地存储导入存档 */
-export function localLoad(slot: number = 0): boolean {
+export function localLoad(slot: number = currentSlot): boolean {
   const s = localStorage.getItem(gameName + '-save' + slot)
   if (s == null) {
     return false

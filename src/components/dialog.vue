@@ -1,0 +1,128 @@
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted } from 'vue'
+import {
+  currentDialog,
+  closeDialog,
+  type ConfirmDialogOptions,
+  type SlotDialogOptions,
+} from '@/dialog'
+import { getSlotSummaries, type SlotSummary } from '@/save/save'
+import { getAchievementCount } from '@/logic/achievements'
+import { format, formatTime } from '@/tools/format'
+
+/**当前是否为确认框 */
+const isConfirm = computed(() => currentDialog.value?.kind == 'confirm')
+/**确认框选项 */
+const confirmOptions = computed<ConfirmDialogOptions | undefined>(() =>
+  currentDialog.value?.kind == 'confirm'
+    ? (currentDialog.value.options as ConfirmDialogOptions)
+    : undefined,
+)
+/**槽位框选项 */
+const slotOptions = computed<SlotDialogOptions | undefined>(() =>
+  currentDialog.value?.kind == 'slots'
+    ? (currentDialog.value.options as SlotDialogOptions)
+    : undefined,
+)
+/**全部存档槽位的摘要(对话框打开时实时读取) */
+const summaries = computed<SlotSummary[]>(() => (slotOptions.value ? getSlotSummaries() : []))
+/**成就总数(用于摘要显示) */
+const achievementTotal = computed(() => getAchievementCount())
+/**生成一行槽位摘要文字 */
+function slotText(s: SlotSummary): string {
+  if (!s.exists) return '空'
+  return `游玩${formatTime(s.totalTime)} · 点数${format(s.points)} · 成就${s.achievements}/${achievementTotal.value}`
+}
+/**按下ESC时取消槽位选择框 */
+function onKeydown(e: KeyboardEvent) {
+  if (e.key == 'Escape' && currentDialog.value?.kind == 'slots') closeDialog(null)
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+</script>
+<template>
+  <div
+    v-if="currentDialog"
+    class="overlay"
+    @click.self="currentDialog.kind == 'slots' && closeDialog(null)"
+  >
+    <!-- 确认框 -->
+    <div v-if="isConfirm" class="panel">
+      <span class="text bold title">{{ confirmOptions?.title }}</span>
+      <span class="text content">{{ confirmOptions?.text }}</span>
+      <div class="row buttons">
+        <button class="subTab" @click="closeDialog(false)">
+          {{ confirmOptions?.cancelText ?? '取消' }}
+        </button>
+        <button class="subTab affordable" @click="closeDialog(true)">
+          {{ confirmOptions?.confirmText ?? '确认' }}
+        </button>
+      </div>
+    </div>
+    <!-- 存档槽位选择框 -->
+    <div v-else class="panel slotsPanel">
+      <span class="text bold title">{{ slotOptions?.title }}</span>
+      <button v-for="s in summaries" :key="s.slot" class="slotRow" @click="closeDialog(s.slot)">
+        <span class="text slotLabel">槽位 {{ s.slot + 1 }}</span>
+        <span class="text slotInfo" :class="{ empty: !s.exists }">{{ slotText(s) }}</span>
+      </button>
+      <button class="subTab" @click="closeDialog(null)">取消</button>
+    </div>
+  </div>
+</template>
+<style scoped>
+div.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+}
+div.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 2px solid var(--dim);
+  background-color: var(--panel);
+  box-shadow: 4px 4px 8px var(--shadow);
+  max-width: 80vw;
+}
+span.title {
+  font-size: 16px;
+}
+span.content {
+  max-width: 320px;
+  text-align: center;
+  white-space: pre-wrap;
+}
+div.buttons {
+  margin-top: 4px;
+}
+div.slotsPanel {
+  min-width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+button.slotRow {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+  padding: 6px 10px;
+}
+button.slotRow:hover:not(:disabled) {
+  background-color: var(--selected-bg);
+}
+span.slotInfo {
+  color: var(--dim);
+}
+span.slotInfo.empty {
+  color: var(--faint);
+}
+</style>

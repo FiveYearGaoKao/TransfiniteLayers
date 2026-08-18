@@ -46,9 +46,11 @@ const tabs = computed(() => {
 </template>
 <style lang="css" scoped>
 div#navigatorBar {
-  border: 2px solid var(--dim);
+  border-left: 2px solid var(--dim);
+  border-right: 2px solid var(--dim);
   width: 150px;
   height: 100%;
+  flex: 0 0 auto;
   box-sizing: border-box;
 }
 /*窄屏或矮屏(横屏):横向排列，按钮可换行，高度至少为固定值*/

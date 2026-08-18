@@ -63,15 +63,14 @@ function onResize() {
 div#newsBar {
   width: 100%;
   height: 32px;
+  border: 2px solid var(--dim);
+  border-bottom: none;
+  box-sizing: border-box;
 }
 div.newsContainer {
-  width: 90%;
-  left: 5%;
+  width: 100%;
   height: 100%;
-  padding: 4px;
   box-sizing: border-box;
-  border: 2px solid var(--dim);
-  border-radius: 6px;
   overflow: hidden;
   position: relative;
 }

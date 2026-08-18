@@ -13,6 +13,7 @@ import resourceBar from './components/resourceBar.vue'
 import navigatorBar from './components/navigatorBar.vue'
 import logBar from './components/logBar.vue'
 import toolBar from './components/toolBar.vue'
+import DialogHost from './components/dialog.vue'
 </script>
 
 <template>
@@ -37,9 +38,10 @@ import toolBar from './components/toolBar.vue'
       <logBar v-if="settings.showLog" />
     </div>
     <div id="footer">
-      <toolBar />
+      <toolBar v-if="settings.showToolBar" />
     </div>
   </div>
+  <DialogHost />
 </template>
 
 <style scoped>
@@ -64,7 +66,7 @@ div#center > * {
   min-width: 0;
 }
 div#realMain {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   margin: 0px;
   min-width: 0;
   overflow-x: hidden;
@@ -78,6 +80,9 @@ div#footer {
   div#center {
     flex-direction: column;
     height: auto;
+  }
+  div#realMain {
+    flex: 1 1 auto;
   }
 }
 </style>

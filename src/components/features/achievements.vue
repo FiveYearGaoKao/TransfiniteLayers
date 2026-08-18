@@ -17,7 +17,7 @@ function showTip(def: AchievementDef, e: MouseEvent) {
 </script>
 <template>
   <div id="achievements">
-    <div id="subtabRow">
+    <div class="subtabRow">
       <button
         :class="{ subTab: true, selected: subtab == 'achievements' }"
         @click="subtab = 'achievements'"
@@ -58,11 +58,7 @@ function showTip(def: AchievementDef, e: MouseEvent) {
     </div>
   </div>
   <Teleport to="body">
-    <div
-      v-if="tip"
-      class="achievementTip"
-      :style="{ left: tip.x + 'px', top: tip.y + 'px' }"
-    >
+    <div v-if="tip" class="achievementTip" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
       {{ tip.def.description }}
       <div v-if="tip.def.effectText" class="effect">{{ tip.def.effectText }}</div>
     </div>
@@ -70,14 +66,10 @@ function showTip(def: AchievementDef, e: MouseEvent) {
 </template>
 <style scoped>
 div#achievements {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-}
-div#subtabRow {
-  display: flex;
-  flex-direction: row;
   gap: 6px;
 }
 div#achievementList {
@@ -133,13 +125,18 @@ div.story {
     color: var(--faint);
   }
 }
-/*窄屏时减少每行成就数*/
-@media (max-width: 700px) {
+/*按主体实际宽度调整列数(容器查询,而非视口宽度)*/
+@container (max-width: 900px) {
+  div#achievementList {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+@container (max-width: 680px) {
   div#achievementList {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
-@media (max-width: 400px) {
+@container (max-width: 460px) {
   div#achievementList {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

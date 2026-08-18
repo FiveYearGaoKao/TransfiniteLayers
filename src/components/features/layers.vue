@@ -11,6 +11,8 @@ import { dimsAutoUnlocked, isAutoItem, toggleAutoItem } from '@/logic/automation
 import { canReset, resetGain } from '@/compute/prestige'
 import { doReset } from '@/logic/reset'
 import { player } from '@/data/player'
+import { openConfirm } from '@/dialog'
+import { settings } from '@/settings'
 import { computed } from 'vue'
 import BuyableItem from './buyableItem.vue'
 import UpgradeItem from './upgradeItem.vue'
@@ -56,10 +58,23 @@ const upgradeList = computed(() =>
     isUpgradeUnlocked(player.layerSubtab, u.id),
   ),
 )
+/**点击晋升按钮:按设置决定是否二次确认 */
+async function doResetConfirm() {
+  const pos = player.layerSubtab
+  const confirmed =
+    !settings.resetConfirm ||
+    (await openConfirm({
+      title: '重置确认',
+      text: `晋升并获得 ${formatWhole(resetGain(pos))} ${getLayerName(pos)}点数?\n这将重置下层进度。`,
+      confirmText: '确认重置',
+      cancelText: '取消',
+    }))
+  if (confirmed) doReset(pos)
+}
 </script>
 <template>
   <div id="layers" style="height: 100%">
-    <div v-for="(i, rowIndex) in layerList" :key="rowIndex">
+    <div class="subtabRow" v-for="(i, rowIndex) in layerList" :key="rowIndex">
       <template v-for="(j, colIndex) in i" :key="colIndex">
         <button
           :class="{ subTab: true, selected: j.selected }"
@@ -73,7 +88,7 @@ const upgradeList = computed(() =>
     <button
       :class="{ prestige: true, affordable: canReset(player.layerSubtab) }"
       v-if="!isLayer0(player.layerSubtab)"
-      @click="doReset(player.layerSubtab)"
+      @click="doResetConfirm()"
     >
       +{{ formatWhole(resetGain(player.layerSubtab)) }} {{ getLayerName(player.layerSubtab) }}点数
     </button>
@@ -107,7 +122,7 @@ const upgradeList = computed(() =>
             }})
           </span>
         </div>
-        <div class="cell" :class="{ row: dimsAutoUnlocked(player.layerSubtab) }">
+        <div class="cell" :class="{ horizontal: dimsAutoUnlocked(player.layerSubtab) }">
           <button
             :class="['buyable', canAfford(player.layerSubtab, i - 1) ? 'affordable' : '']"
             @click="buyDimension(player.layerSubtab, i - 1)"
@@ -118,6 +133,7 @@ const upgradeList = computed(() =>
             v-if="dimsAutoUnlocked(player.layerSubtab)"
             :class="[
               'toggle',
+              'compact',
               isAutoItem(player.layerSubtab, 'dims', i - 1) ? 'toggle-on' : 'toggle-off',
             ]"
             @click="toggleAutoItem(player.layerSubtab, 'dims', i - 1)"
@@ -146,6 +162,11 @@ const upgradeList = computed(() =>
   </div>
 </template>
 <style scoped>
+.text-highlight {
+  font-size: 18px;
+  color: var(--text);
+  text-shadow: 1px 1px var(--shadow);
+}
 div#layers {
   display: flex;
   flex-direction: column;
@@ -160,36 +181,24 @@ div#dimensionTable {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    &.row {
+    &.horizontal {
       flex-direction: row;
       gap: 2px;
     }
     .text {
       font-size: 12px;
     }
-    button {
-      height: 26px;
-      font-size: 11px;
-    }
-    button.buyable {
-      width: 88px;
-    }
-    button.toggle {
-      width: 72px;
-      min-width: 0;
-      padding: 0 4px;
-    }
   }
   /*奇数维度行与偶数维度行颜色不同*/
   .cell:nth-child(6n + 1),
   .cell:nth-child(6n + 2),
   .cell:nth-child(6n + 3) {
-    background-color: var(--row-odd);
+    background-color: var(--dim-odd-bg);
   }
   .cell:nth-child(6n + 4),
   .cell:nth-child(6n + 5),
   .cell:nth-child(6n + 6) {
-    background-color: var(--row-even);
+    background-color: var(--dim-even-bg);
   }
 }
 /*可购买行*/

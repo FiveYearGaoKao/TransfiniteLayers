@@ -13,7 +13,12 @@ import {
 import { buyableAmount } from '@/compute/buyables'
 import { dimensionMultiplier } from '@/compute/dimensions'
 import { KNOWLEDGE_UNLOCK_AMOUNT } from '@/data/constants'
-import { registerEffect, type EffectDef, type RegisteredEffect } from '@/compute/effects'
+import {
+  effectValueById,
+  registerEffect,
+  type EffectDef,
+  type RegisteredEffect,
+} from '@/compute/effects'
 import { addLog } from '@/log'
 import type { LayerId } from '@/data/types'
 import { compareLayer } from '@/tools/ordinal'
@@ -189,7 +194,8 @@ const achievements: AchievementDef[] = [
     name: '全速前进',
     description: '从层级0的加速器中获得至少x9.007e15的加成',
     reward: 15,
-    isCompleted: () => false,
+    isCompleted: () =>
+      effectValueById('buyable-11', { pos: [0], id: 11 }).gte(Number.MAX_SAFE_INTEGER),
     effect: {
       target: 'b11:base',
       type: 'add',
@@ -258,9 +264,9 @@ export function getAchievements(): AchievementDef[] {
   return achievements
 }
 
-/**已解锁成就的数量 */
+/**已注册成就的数量 */
 export function getAchievementCount(): number {
-  return player.achievements.length
+  return achievements.length
 }
 
 /**解锁一个成就并发放知识奖励 */
