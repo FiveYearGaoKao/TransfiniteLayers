@@ -106,6 +106,7 @@ div.slotsPanel {
   min-width: 360px;
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 button.slotRow {
   display: flex;

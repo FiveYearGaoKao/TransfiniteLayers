@@ -3,9 +3,17 @@ import { computed, reactive, ref } from 'vue'
 import Decimal, { type DecimalSource } from 'break_eternity.js'
 import { formatTime, format } from '@/tools/format'
 import { player } from '@/data/player'
-import { hardReset, importSaveString, exportSaveString, localSave, localLoad, setCurrentSlot, hasSlotSave } from '@/save/save'
+import {
+  hardReset,
+  importSaveString,
+  exportSaveString,
+  localSave,
+  localLoad,
+  setCurrentSlot,
+  hasSlotSave,
+} from '@/save/save'
 import { openConfirm, openSlots } from '@/dialog'
-import { settings, saveSettings, cycleTheme, THEMES } from '@/settings'
+import { settings, saveSettings, cycleTheme, THEMES, type Settings } from '@/settings'
 import { temp } from '@/temp'
 import { type logType, addLog } from '@/log'
 import { gameVersion, DIMENSION_COUNT } from '@/data/constants'
@@ -87,19 +95,18 @@ async function doHardReset() {
 }
 /**当前主题的名称 */
 const themeName = computed(() => THEMES.find((t) => t.id == settings.theme)?.name ?? settings.theme)
-/**切换滚动新闻 */
-function toggleNews() {
-  settings.showNews = !settings.showNews
+/**boolean类型的顶层设置键 */
+type booleanSettingKey = {
+  [K in keyof Settings]: Settings[K] extends boolean ? K : never
+}[keyof Settings]
+/**通用的设置项修改:赋新值并保存 */
+function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+  settings[key] = value
   saveSettings()
 }
-/**切换日志栏显示 */
-function toggleLog() {
-  settings.showLog = !settings.showLog
-  saveSettings()
-}
-/**切换工具栏显示 */
-function toggleToolBar() {
-  settings.showToolBar = !settings.showToolBar
+/**反转boolean设置项并保存 */
+function toggleSettings(key: booleanSettingKey) {
+  settings[key] = !settings[key]
   saveSettings()
 }
 /**所有日志类型 */
@@ -125,20 +132,12 @@ function doManualSave() {
   localSave()
   addLog('info', '游戏已保存')
 }
-/**切换自动保存 */
-function toggleAutoSave() {
-  settings.autoSave = !settings.autoSave
-  saveSettings()
-}
 /**设置自动保存间隔(秒),非法输入保持原值 */
 function setAutoSaveInterval(v: string) {
   const n = Math.floor(Number(v))
-  if (Number.isFinite(n) && n > 0) {
-    settings.autoSaveInterval = n
-    saveSettings()
-  }
+  if (Number.isFinite(n) && n > 0) setSetting('autoSaveInterval', n)
 }
-/**解析伪现实速度初始值输入,非法时保持原值 */
+/**解析全局速度初始值输入,非法时保持原值 */
 function setDebugSpeed(v: string) {
   const d = new Decimal(v)
   if (!Decimal.isNaN(d) && d.gt(0)) temp.debugSpeed = d
@@ -163,8 +162,7 @@ const statDefs: StatTargetDef[] = [
     target: 'psdSpeed',
     perDim: false,
     sign: 'x',
-    label: () => '伪现实速度',
-    base: () => temp.debugSpeed,
+    label: () => '全局速度',
   },
 ]
 /**效果作用方式的符号 */
@@ -307,19 +305,19 @@ const flatTree = computed<FlatRow[]>(() => {
           </button>
           <button
             :class="['toggle', settings.showToolBar ? 'toggle-on' : 'toggle-off']"
-            @click="toggleToolBar()"
+            @click="toggleSettings('showToolBar')"
           >
             工具栏：{{ settings.showToolBar ? '开' : '关' }}
           </button>
           <button
             :class="['toggle', settings.showLog ? 'toggle-on' : 'toggle-off']"
-            @click="toggleLog()"
+            @click="toggleSettings('showLog')"
           >
             日志栏：{{ settings.showLog ? '开' : '关' }}
           </button>
           <button
             :class="['toggle', settings.showNews ? 'toggle-on' : 'toggle-off']"
-            @click="toggleNews()"
+            @click="toggleSettings('showNews')"
           >
             滚动新闻：{{ settings.showNews ? '开' : '关' }}
           </button>
@@ -343,7 +341,7 @@ const flatTree = computed<FlatRow[]>(() => {
         <div class="row">
           <button
             :class="['toggle', settings.resetConfirm ? 'toggle-on' : 'toggle-off']"
-            @click="settings.resetConfirm = !settings.resetConfirm; saveSettings()"
+            @click="toggleSettings('resetConfirm')"
           >
             重置二次确认：{{ settings.resetConfirm ? '开' : '关' }}
           </button>
@@ -367,13 +365,15 @@ const flatTree = computed<FlatRow[]>(() => {
         <div class="row">
           <button
             :class="['toggle', settings.autoSave ? 'toggle-on' : 'toggle-off']"
-            @click="toggleAutoSave()"
+            @click="toggleSettings('autoSave')"
           >
             自动保存：{{ settings.autoSave ? '开' : '关' }}
           </button>
           <span class="text">间隔</span>
           <input
             type="number"
+            min="1"
+            max="3600"
             :value="settings.autoSaveInterval"
             :disabled="!settings.autoSave"
             @change="setAutoSaveInterval(($event.target as HTMLInputElement).value)"
@@ -397,7 +397,7 @@ const flatTree = computed<FlatRow[]>(() => {
       <div class="section">
         <span class="text bold">调试</span>
         <div class="row">
-          <span class="text">伪现实速度初始值(不存档)</span>
+          <span class="text">全局速度初始值(不存档)</span>
           <input
             :value="temp.debugSpeed.toString()"
             @change="setDebugSpeed(($event.target as HTMLInputElement).value)"
@@ -415,10 +415,15 @@ const flatTree = computed<FlatRow[]>(() => {
     </div>
 
     <div v-if="subtab == 'statistics'" id="statistics">
-      <span class="text">存档创建时间: {{ new Date(player.firstPlay).toLocaleString() }}</span>
-      <span class="text">游玩时间: {{ formatTime(player.totalTime) }}</span>
-      <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span>
-      <span class="text">加速时间: {{ formatTime(player.warpTime) }}</span>
+      <span class="text">存档创建时间: {{ new Date(player.firstPlay).toLocaleString() }}</span
+      ><br />
+      <span class="text">游戏时间(现实): {{ formatTime(player.realTime) }} </span><br />
+      <span class="text">游戏时间: {{ formatTime(player.totalTime) }}</span
+      ><br />
+      <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span
+      ><br />
+      <span class="text">加速时间: {{ formatTime(player.warpTime) }}</span
+      ><br />
       <div class="section">
         <span class="text bold">加成明细 · 当前层级 {{ getLayerName(player.layerSubtab) }}</span>
         <div class="statTree">

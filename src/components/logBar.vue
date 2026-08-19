@@ -74,8 +74,7 @@ span.automator {
 @media (max-width: 700px), (max-height: 500px) {
   div#logBar {
     width: 100%;
-    height: auto;
-    min-height: 72px;
+    height: 100px;
     border: none;
     border-top: 2px solid var(--dim);
   }

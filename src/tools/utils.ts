@@ -40,9 +40,10 @@ export function arrayOrder<T>(seq1: T[], seq2: T[], comp: compFunc<T>): CompareR
   else return lexOrder<T>(seq1, seq2, comp)
 }
 //------版本号相关------
-/**将版本号字符串转化为数组 */
+/**将版本号字符串转化为数组(容忍不带v前缀的情况) */
 export function parseVersion(v: string): number[] {
-  return v.slice(1).split('.').map(parseInt)
+  const clean = /^[vV]/.test(v) ? v.slice(1) : v
+  return clean.split('.').map(Number)
 }
 /**比较版本号 */
 export function versionComp(a: string, b: string): CompareResult {

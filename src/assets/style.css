@@ -159,6 +159,9 @@ button.affordable:active {
 button.toggle-on:hover:not(:disabled) {
   background-color: var(--good-hover);
 }
+button.bought:hover:not(:disabled) {
+  background-color: var(--good-hover);
+}
 .toggle-off {
   border-color: var(--bad-border);
   background-color: var(--bad-bg);

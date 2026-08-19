@@ -21,9 +21,14 @@ export interface Player {
   firstPlay: number
   lastPlay: number
   seed: number
+  /**游玩时间(游戏时间) */
   totalTime: Decimal
-  offlineTime: Decimal //储存的离线时间
-  warpTime: Decimal //加速时间
+  /**游玩时间(现实时间) */
+  realTime: Decimal
+  /**储存的离线时间 */
+  offlineTime: Decimal
+  /**加速时间 */
+  warpTime: Decimal
   paused: boolean
   /**离线时间的去向:转加速时间/储存为离线时间/离线结束时询问(需升级"离线去向") */
   offlineMode: 'warp' | 'store' | 'ask'
@@ -39,9 +44,7 @@ export interface Player {
   knowledgeUnlocked: boolean
   /**各知识升级的已购数量 */
   knowledgeUpgrades: Record<string, Decimal>
-  /**加速是否开启(离线时间不足时自动关闭,需升级"离线加速") */
-  boostActive: boolean
-  /**加速的目标倍率 */
+  /**加速的目标倍率(1倍即关闭) */
   boostSpeed: Decimal
   /**各层级的自动化配置 */
   automations: Record<string, LayerAutomation>
@@ -63,6 +66,7 @@ export function initializeSave(): Player {
     lastPlay: Date.now(),
     seed: Math.floor(Math.random() * 1e9),
     totalTime: new Decimal(0),
+    realTime: new Decimal(0),
     offlineTime: new Decimal(0),
     warpTime: new Decimal(0),
     paused: false,
@@ -79,7 +83,6 @@ export function initializeSave(): Player {
     knowledge: new Decimal(0),
     knowledgeUnlocked: false,
     knowledgeUpgrades: {},
-    boostActive: false,
     boostSpeed: new Decimal(DEFAULT_BOOST_SPEED),
     automations: {},
     challenges: {},

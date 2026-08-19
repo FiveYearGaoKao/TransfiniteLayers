@@ -47,7 +47,7 @@ compute/  # 只读计算,不写状态
   upgrades.ts   # 升级定义 u1-u9 与效果注册
   buyables.ts   # 可购买 b11-b13 与效果注册
   buying.ts     # 统一购买数量计算(sumCost/maxBuyable)
-  knowledge.ts  # 知识升级定义/访问函数/伪现实速度计算
+  knowledge.ts  # 知识升级定义/访问函数/全局速度计算
 logic/    # 写状态
   update.ts     # 主循环更新层级
   reset.ts      # 重置引擎(doReset/resetData)
@@ -61,7 +61,7 @@ core.ts   # 主循环 mainLoop/autoSaveLoop
 settings.ts # 设置(主题/开关,独立 localStorage)
 log.ts    # 日志
 news.ts   # 滚动新闻
-temp.ts   # 运行时缓存(临时层/tempLayers/调试用伪现实速度初始值)
+temp.ts   # 运行时缓存(临时层/tempLayers/调试用全局速度初始值)
 components/
   features/  # 各页面: layers/options/achievements/knowledge/challenges/automation
   newsBar/resourceBar/navigatorBar/logBar/toolBar
@@ -177,7 +177,7 @@ interface EffectSlot {
 
 - `settings.ts`：主题（THEMES 列表 + cycleTheme，加新主题需改 themeType + style.css 变量）、新闻开关、日志开关、自动保存间隔、日志类型过滤、知识页"隐藏已满级升级"开关（独立 localStorage，不进存档）。
 - 主题：`body.dark/light` class + CSS 变量（style.css `:root`/`body.light`）。组件颜色全部用 `var(--...)`。
-- options 页子界面：设置（偏好/调试/日志过滤/存档/硬重置，偏好区含"离线去向"开关）/关于游戏（版本+更新记录）/统计（时间 + 加成明细树：当前层逐维度总乘数/总指数及各来源，可下拉展开到槽位底数/数量及其修饰来源，含伪现实速度）。
+- options 页子界面：设置（偏好/调试/日志过滤/存档/硬重置，偏好区含"离线去向"开关）/关于游戏（版本+更新记录）/统计（时间 + 加成明细树：当前层逐维度总乘数/总指数及各来源，可下拉展开到槽位底数/数量及其修饰来源，含全局速度）。
 
 ### 8. UI 与布局
 
@@ -218,11 +218,11 @@ interface EffectSlot {
 
 - **资源**：`offlineTime`（离线时间，可储存货币，1 知识 = 60 秒兑换）与 `warpTime`（加速时间，供时间扭曲消耗）。
 - **时间扭曲**：`warpTime >= 1` 秒时**自动开启（无开关）**，每帧消耗 1% 并直接推进游戏时间，属于快速爆发式消耗。
-- **加速**：消耗 `offlineTime` 稳定提升伪现实速度——`speed-boost` 效果注册在 `psdSpeed` 目标上，值为 `boostSpeed`（预设倍率或自定义输入），生效条件 `boostActive`；离线时间不足时自动关闭并记 warning 日志。
+- **加速**：消耗 `offlineTime` 稳定提升全局速度——`speed-boost` 效果注册在 `psdSpeed` 目标上，值为 `boostSpeed`（预设倍率或自定义输入），生效条件 `boostActive`；离线时间不足时自动关闭并记 warning 日志。
 - **计算顺序**：加速**先于**时间扭曲——加速在未被扭曲放大的 dt 上按 `dt×(boostSpeed-1)` 消耗离线时间，从而节省离线时间消耗。
 - **离线产出**（距上一帧超过 `OFFLINE_THRESHOLD` 判定离线）：相关功能由"离线进度 → 离线去向 → 离线加速"的知识升级链逐级解锁，未购买时零产出；默认转为 `warpTime`，购买"离线去向"后可在**选项页偏好区**切换储存进 `offlineTime`（`player.offlineMode`）。
 - **暂停**：暂停期间时间储存为离线时间；暂停、时间流逝 1 帧等工具栏按钮由知识升级链解锁（未解锁时置灰）。
-- **伪现实速度**：`getPsdSpeed() = calculate('psdSpeed', {pos:[0],id:0}, temp.debugSpeed)`；初始值 `debugSpeed` 是不存档的调试输入（选项页设置区），统计页可按加成管道查看明细。
+- **全局速度**：`getPsdSpeed() = calculate('psdSpeed', {pos:[0],id:0}, temp.debugSpeed)`；初始值 `debugSpeed` 是不存档的调试输入（选项页设置区），统计页可按加成管道查看明细。
 
 ## 七、未实现 / 待办
 

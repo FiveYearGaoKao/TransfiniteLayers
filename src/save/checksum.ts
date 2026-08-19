@@ -1,6 +1,11 @@
 //存档校验码
-import type { Player } from '@/data/player'
-/**随便用多项式生成一个校验码 */
+//定位:完整性校验(检测存档损坏/被手改),不是反作弊——源码公开,算法必然可被还原
+//校验基于"markDecimals 后统一序列化的结果"计算,保存和加载走同一基准
+/**引入本套校验机制的版本号,低于它的旧存档跳过校验 */
+export const CHECKSUM_VERSION: string = 'v0.0.5'
+/**参与校验种子计算的装饰性盐(源码公开,仅提高一看就懂的门槛) */
+export const CHECKSUM_SALT: number = 20260801
+/**用多项式哈希生成校验码 */
 export function checkCode(s: string, x: number): number {
   const M = 257
   const P = 10000019
@@ -20,11 +25,4 @@ export function checkCode(s: string, x: number): number {
     res = (res * x + (A[i] || 0)) % P
   }
   return res
-}
-/**生成存档的校验码并和原来的校验码比较 */
-export function check(p: Player): boolean {
-  const previousCheckCode = p.checkCode
-  p.checkCode = 0
-  p.checkCode = checkCode(JSON.stringify(p), p.firstPlay)
-  return previousCheckCode == p.checkCode
 }

@@ -1,7 +1,9 @@
 //游戏中的常量
 
 export const gameName: string = 'TransfiniteLayers'
-export const gameVersion: string = 'v0.0.3'
+export const gameVersion: string = 'v0.0.5'
+/**允许导入的存档的最早创建时间(毫秒时间戳) */
+export const EARLIEST_SAVE_TIME: number = new Date('2026/8/1').getTime()
 /**存档槽位数量 */
 export const SAVE_SLOT_COUNT: number = 10
 /**序数进制的初始值 */
@@ -16,8 +18,8 @@ export const MAX_LOG_COUNT: number = 100
 export const KNOWLEDGE_UNLOCK_AMOUNT: number = 10
 /**1知识可兑换的离线时间(秒) */
 export const KNOWLEDGE_TIME_RATE: number = 60
-/**加速模式的默认倍率 */
-export const DEFAULT_BOOST_SPEED: number = 5
+/**加速模式的默认倍率(1倍即关闭) */
+export const DEFAULT_BOOST_SPEED: number = 1
 /**能量加成:高层能量给低层维度的指数 */
 export const ENERGY_BONUS_EXPONENT: number = 0.2
 /**升级u1(点数作用)的指数,对数式点数加成 */

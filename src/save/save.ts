@@ -2,11 +2,12 @@
 import Decimal, { type DecimalSource } from 'break_eternity.js'
 import { compressToBase64, decompressFromBase64 } from 'lz-string'
 import { player, type Player, initializeSave } from '@/data/player'
-import { gameName, gameVersion, DEFAULT_BOOST_SPEED, SAVE_SLOT_COUNT } from '@/data/constants'
+import { gameName, gameVersion, EARLIEST_SAVE_TIME, SAVE_SLOT_COUNT } from '@/data/constants'
 import { getLayer } from '@/access'
 import { seedRng } from './rng'
 import { migrate } from './migration'
-import { check } from './checksum'
+import { checkCode, CHECKSUM_VERSION, CHECKSUM_SALT } from './checksum'
+import { versionComp } from '@/tools/utils'
 import { addLog } from '@/log'
 
 //------存档槽位------
@@ -89,9 +90,14 @@ export function addValue(key: decimalKey, value: DecimalSource) {
 }
 
 //------存档和读档------
-/**将对象中的Decimal替换为{$d:字符串}标记(序列化用) */
+/**将对象中的Decimal替换为{$d:字符串,$l:layer}标记(序列化用)
+ * 注:layer0存mag的精确字符串(Double.toString/parseFloat为精确往返),
+ * break_eternity的toString对|mag|<1会丢1ulp(导致存档往返不恒等) */
 function markDecimals(obj: unknown): unknown {
-  if (obj instanceof Decimal) return { $d: obj.toString() }
+  if (obj instanceof Decimal) {
+    if (obj.layer === 0) return { $d: String(obj.sign * obj.mag), $l: 0 }
+    return { $d: obj.toString(), $l: obj.layer }
+  }
   if (Array.isArray(obj)) return obj.map(markDecimals)
   if (obj != null && typeof obj == 'object') {
     const res: Record<string, unknown> = {}
@@ -102,10 +108,17 @@ function markDecimals(obj: unknown): unknown {
   }
   return obj
 }
-/**将{$d:字符串}标记还原为Decimal(读档用) */
+/**将{$d,$l}标记还原为Decimal(读档用)
+ * 注:layer0用fromComponents_noNormalize按位精确还原(不经过会丢精度的normalize),
+ * 无$l标记的旧存档走fromString,保持旧行为 */
 function unmarkDecimals(obj: unknown): unknown {
   if (obj != null && typeof obj == 'object' && '$d' in obj) {
-    return new Decimal((obj as { $d: string }).$d)
+    const marked = obj as { $d: string; $l?: number }
+    if (marked.$l === 0) {
+      const n = parseFloat(marked.$d)
+      return Decimal.fromComponents_noNormalize(Math.sign(n), 0, Math.abs(n))
+    }
+    return new Decimal(marked.$d)
   }
   if (Array.isArray(obj)) return obj.map(unmarkDecimals)
   if (obj != null && typeof obj == 'object') {
@@ -117,11 +130,20 @@ function unmarkDecimals(obj: unknown): unknown {
   }
   return obj
 }
+/**校验存档的校验码(与stringify共用同一序列化基准) */
+function verifySave(saveFile: Player): boolean {
+  const previous = saveFile.checkCode
+  const marked = markDecimals(saveFile) as Record<string, unknown>
+  marked.checkCode = 0
+  const code = checkCode(JSON.stringify(marked), saveFile.firstPlay ^ CHECKSUM_SALT)
+  return previous == code
+}
 /**将存档转化为字符串 */
 function stringify(): string {
-  check(player)
-  const saveFile = compressToBase64(JSON.stringify(markDecimals(player)))
-  return saveFile
+  const marked = markDecimals(player) as Record<string, unknown>
+  marked.checkCode = 0
+  marked.checkCode = checkCode(JSON.stringify(marked), player.firstPlay ^ CHECKSUM_SALT)
+  return compressToBase64(JSON.stringify(marked))
 }
 /**将字符串转化为Player对象 */
 function parse(s1: string): Player {
@@ -131,11 +153,13 @@ function parse(s1: string): Player {
 function load(s: string): number {
   const s1 = decompressFromBase64(s) || 'null'
   const saveFile = parse(s1)
-  console.log(saveFile)
   if (saveFile == null || typeof saveFile != 'object') {
     addLog('error', '导入失败!存档格式不正确![错误代码:101]')
-    return 100
-  } else if (0 && !check(saveFile)) {
+    return 101
+  } else if (
+    versionComp(saveFile.version, CHECKSUM_VERSION) >= 0 &&
+    !verifySave(saveFile)
+  ) {
     addLog('error', '导入失败!存档疑似被修改过![错误代码:250]')
     return 250
   } else if (saveFile.lastPlay > Date.now()) {
@@ -144,30 +168,23 @@ function load(s: string): number {
   } else if (saveFile.firstPlay > saveFile.lastPlay) {
     addLog('error', '导入失败!存档时间异常，加载它可能导致时空错乱![错误代码:302]')
     return 302
-  } else if (saveFile.firstPlay < new Date('2026/1/1').getTime()) {
+  } else if (saveFile.firstPlay < EARLIEST_SAVE_TIME) {
     addLog('error', '导入失败!存档创建时间过早，加载它可能导致时空错乱![错误代码:303]')
     return 303
   } else {
-    migrate(saveFile)
+    try {
+      migrate(saveFile)
+    } catch {
+      addLog('error', '导入失败!存档迁移出错![错误代码:400]')
+      return 400
+    }
     Object.assign(player, saveFile)
     player.version = gameVersion
+    if (versionComp(saveFile.version, gameVersion) < 0) {
+      addLog('warning', '存档版本过旧,部分迁移未执行,缺失内容已按默认值补齐')
+    }
     if (!(player.seed >= 0)) player.seed = 0
-    if (!player.achievements) player.achievements = []
-    if (!player.knowledge) player.knowledge = new Decimal(0)
-    if (!player.knowledgeUnlocked) player.knowledgeUnlocked = false
-    if (!player.knowledgeUpgrades) player.knowledgeUpgrades = {}
-    if (
-      player.offlineMode != 'warp' &&
-      player.offlineMode != 'store' &&
-      player.offlineMode != 'ask'
-    )
-      player.offlineMode = 'warp'
-    if (!player.boostActive) player.boostActive = false
-    if (!player.boostSpeed) player.boostSpeed = new Decimal(DEFAULT_BOOST_SPEED)
-    if (!player.automations) player.automations = {}
-    if (!player.challenges) player.challenges = {}
-    if (!player.activeChallenges) player.activeChallenges = []
-    if (!player.challengeTab) player.challengeTab = 'normal'
+    if (!['warp', 'store', 'ask'].includes(player.offlineMode)) player.offlineMode = 'warp'
     if (getLayer(player.layerSubtab) == null) player.layerSubtab = [0]
     seedRng(player.seed)
     return 0

@@ -1,5 +1,7 @@
 //存档迁移机制
-//新的内容加入后，旧存档可能缺少某些字段，需要通过迁移来补齐
+//职责:对旧存档做"数据转换"(如重命名、重算字段),而不是补默认字段
+//补字段由 initializeSave + Object.assign 负责,迁移只处理需要变换的数据
+//注意:迁移函数运行在无默认值的原始存档对象上,必须自包含,不能假设字段已存在
 import type { Player } from '@/data/player'
 import { versionComp } from '@/tools/utils'
 
@@ -14,7 +16,10 @@ export const migrations: Migration[] = []
 /**应用所有比当前版本更新的迁移 */
 export function migrate(save: Player): void {
   for (const m of migrations) {
-    if (versionComp(save.version, m.to) < 0) {
+    if (
+      versionComp(save.version, m.from) >= 0 &&
+      versionComp(save.version, m.to) < 0
+    ) {
       m.apply(save)
       save.version = m.to
     }

@@ -26,10 +26,10 @@ See `PROJECT.md` for the full directory map and layer/reset design.
 
 ### Numbers
 - **All game numbers use `Decimal` from `break_eternity.js`**. Never use plain JS `number` for player state, costs, or production.
-- Decimals are NOT JSON-serializable. The save system uses `markDecimals` (→ `{$d: "..."}`) / `unmarkDecimals` on save/load.
+- Decimals are NOT JSON-serializable. The save system uses `markDecimals` (→ `{$d: "...", $l: layer}`) / `unmarkDecimals` on save/load. Layer-0 Decimals are stored as the exact double string and rebuilt via `fromComponents_noNormalize` — the round-trip is bit-exact (break_eternity's `toString`/`fromString` loses ~1 ulp for `|mag| < 1`).
 
 ### Save system
-- Custom serialization in `save/save.ts`. Checksums are **disabled** (`0 && check(...)` in save.ts — do not re-enable without a redesign).
+- Custom serialization in `save/save.ts`. Checksum (`save/checksum.ts`) is computed over the `markDecimals`-serialized result and verified on load for saves with `version >= CHECKSUM_VERSION` (older saves skip verification). It is an integrity check, not anti-cheat — the algorithm is public in source.
 - No backwards compatibility for old saves (migration.ts is empty).
 
 ### Type system

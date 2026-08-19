@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { format, formatWhole } from '@/tools/format'
+import { formatWhole } from '@/tools/format'
 import type { KnowledgeUpgradeDef } from '@/compute/knowledge'
 import {
   canBuyKnowledgeUpgrade,
@@ -43,7 +43,7 @@ function buyMax() {
         :disabled="!affordable() && !maxed()"
         @click="buyOne()"
       >
-        {{ maxed() ? '已满级' : `价格:${format(knowledgeCost(props.def.id))}知识` }}
+        {{ maxed() ? '已满级' : `价格:${formatWhole(knowledgeCost(props.def.id))}` }}
       </button>
       <button
         v-if="!maxed() && props.def.maxAmount.gt(1)"
@@ -61,9 +61,17 @@ div.knowledgeItem {
   display: flex;
   flex-direction: column;
   align-items: center;
+  text-align: center;
   border: 2px solid var(--dim);
   padding: 4px;
   gap: 4px;
-  width: 190px;
+  width: 200px;
+  height: 120px;
+}
+div.knowledgeItem > .text {
+  width: 100%;
+}
+div.knowledgeItem > .row {
+  margin-top: auto;
 }
 </style>

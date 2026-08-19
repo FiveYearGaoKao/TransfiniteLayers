@@ -30,8 +30,8 @@ export function autoSaveLoop() {
 }
 /**游戏循环，dt以秒为单位 */
 function gameLoop(dt: Decimal) {
-  addValue('totalTime', dt)
   dt = dt.mul(getPsdSpeed())
+  addValue('totalTime', dt)
   updateLayers(dt)
   for (const meta of getMetaLayers()) meta.onTick(dt)
   updateAutomations(dt)
@@ -43,11 +43,13 @@ export function pause() {
 }
 /**游戏前进1帧 */
 export function tick() {
+  addValue('realTime', new Decimal(1 / FPS))
   gameLoop(new Decimal(1 / FPS))
 }
 /**真·主循环 */
 export function mainLoop() {
   let dt = new Decimal((Date.now() - player.lastPlay) / 1000)
+  const realDt = new Decimal(dt)
   player.lastPlay = Date.now()
   if (player.paused) {
     //检测游戏是否暂停:能暂停必然已购买升级"暂停功能",期间时间储存为离线时间
@@ -76,14 +78,14 @@ export function mainLoop() {
     }
   } else {
     //加速先于时间扭曲计算,在未被扭曲放大的dt上消耗,使加速消耗的离线时间较小
-    if (player.boostActive) {
+    if (player.boostSpeed.gt(1)) {
       //加速:稳定消耗离线时间,不足时关闭
       const consume = dt.mul(player.boostSpeed.sub(1))
       if (player.offlineTime.gte(consume)) {
         addValue('offlineTime', consume.neg())
       } else {
         addValue('offlineTime', player.offlineTime.neg())
-        player.boostActive = false
+        player.boostSpeed = new Decimal(1)
         addLog('warning', '加速因离线时间不足而关闭')
       }
     }
@@ -93,6 +95,7 @@ export function mainLoop() {
       addValue('warpTime', consumeWarpTime.neg())
       dt = dt.add(consumeWarpTime)
     }
+    addValue('realTime', realDt)
     gameLoop(dt)
   }
   setTimeout(mainLoop, 1000 / FPS)

@@ -38,21 +38,21 @@ export interface KnowledgeUpgradeDef {
 export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
   {
     id: 'qol-offline',
-    name: '离线进度',
+    name: '时间感知',
     category: 'qol',
-    description: '离线时产出时间,默认全部转为加速时间',
+    description: '解锁离线时间和时间扭曲',
     maxAmount: new Decimal(1),
-    cost: () => new Decimal(1),
+    cost: () => new Decimal(10),
     require: [],
     canBuy: () => true,
   },
   {
     id: 'qol-offline-store',
-    name: '离线去向',
+    name: '时间存储',
     category: 'qol',
-    description: '解锁开关:本次离线时间转加速时间或储存为离线时间(选项页可切换)',
+    description: '允许储存离线时间(选项页可切换)',
     maxAmount: new Decimal(1),
-    cost: () => new Decimal(2),
+    cost: () => new Decimal(10),
     require: [['qol-offline', new Decimal(1)]],
     canBuy: () => true,
   },
@@ -60,7 +60,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     id: 'qol-offline-boost',
     name: '离线加速',
     category: 'qol',
-    description: '离线时间可用于加速(稳定提升伪现实速度)',
+    description: '离线时间可用于加速(稳定提升全局速度)',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(4),
     require: [['qol-offline-store', new Decimal(1)]],
@@ -68,9 +68,9 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
   },
   {
     id: 'qol-pause',
-    name: '暂停功能',
+    name: '时间暂停',
     category: 'qol',
-    description: '解锁工具栏的暂停/恢复按钮,暂停期间时间储存为离线时间',
+    description: '允许主动暂停游戏,暂停期间时间储存为离线时间',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(2),
     require: [['qol-offline-store', new Decimal(1)]],
@@ -78,12 +78,24 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
   },
   {
     id: 'qol-tick',
-    name: '时间流逝1帧',
+    name: 'TAS',
     category: 'qol',
     description: '解锁工具栏的时间流逝1帧按钮',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(1),
     require: [['qol-pause', new Decimal(1)]],
+    canBuy: () => true,
+  },
+  {
+    id: 'qol-boost',
+    name: '超频',
+    category: 'qol',
+    description: '加速倍率升级,每级开放更高倍率(x5/x10/x60)',
+    maxAmount: new Decimal(3),
+    cost(n: Decimal): Decimal {
+      return new Decimal(10).pow(n)
+    },
+    require: [['qol-offline-boost', new Decimal(1)]],
     canBuy: () => true,
   },
   {
@@ -202,19 +214,30 @@ export function knowledgeEffectText(def: KnowledgeUpgradeDef): string {
   return e ? effectText(e, { pos: [0], id: 0 }) : ''
 }
 
-//------伪现实速度------
+//------全局速度------
 //加速的效果经加成管道注册,可在统计页查看明细
+
+registerEffect({
+  id: 'debug',
+  name: '调试',
+  target: 'psdSpeed',
+  type: 'mul',
+  value: () => temp.debugSpeed,
+  isActive: () => temp.debugSpeed.gt(1),
+  text: '全局速度 x{value}',
+})
+
 registerEffect({
   id: 'speed-boost',
   name: '加速',
   target: 'psdSpeed',
   type: 'mul',
   value: () => player.boostSpeed,
-  isActive: () => player.boostActive,
-  text: '伪现实速度 x{value}',
+  isActive: () => player.boostSpeed.gt(1),
+  text: '全局速度 x{value}',
 })
 
-/**当前伪现实速度(调试初始值经加成管道后的结果) */
+/**当前全局速度(调试初始值经加成管道后的结果) */
 export function getPsdSpeed(): Decimal {
-  return calculate('psdSpeed', { pos: [0], id: 0 }, temp.debugSpeed)
+  return calculate('psdSpeed', { pos: [0], id: 0 }, new Decimal(1))
 }

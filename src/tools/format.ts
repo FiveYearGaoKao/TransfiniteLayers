@@ -48,9 +48,9 @@ export function formatTime(x: DecimalSource): string {
       const hours = Math.floor(xn / 3600) % 24
       const days = Math.floor(xn / 86400)
       return (
-        (xn > 86400 ? days + '天' : '') +
-        (xn > 3600 ? hours + '小时' : '') +
-        (xn > 60 ? minutes + '分' : '') +
+        (xn >= 86400 ? days + '天' : '') +
+        (xn >= 3600 ? hours + '小时' : '') +
+        (xn >= 60 ? minutes + '分' : '') +
         (seconds.toFixed(3) + '秒')
       )
     } else if (xn > 1e-3) return (xn * 1000).toFixed(0) + '毫秒'
