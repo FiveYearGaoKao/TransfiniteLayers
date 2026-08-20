@@ -16,10 +16,8 @@ const tabs = computed(() => {
     { id: 'layers', name: '层级', meta: false },
     { id: 'options', name: '选项', meta: false },
     { id: 'achievements', name: '成就', meta: false },
+    { id: 'knowledge', name: '知识', meta: false },
   ]
-  if (player.knowledgeUnlocked) {
-    list.push({ id: 'knowledge', name: '知识', meta: false })
-  }
   if (hasAchievement('a28')) {
     list.push({ id: 'challenges', name: '挑战', meta: false })
   }

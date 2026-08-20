@@ -37,9 +37,9 @@ export interface KnowledgeUpgradeDef {
 /**所有已定义的知识升级 */
 export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
   {
-    id: 'qol-offline',
+    id: 'time-offline',
     name: '时间感知',
-    category: 'qol',
+    category: 'time',
     description: '解锁离线时间和时间扭曲',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(10),
@@ -47,55 +47,55 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     canBuy: () => true,
   },
   {
-    id: 'qol-offline-store',
+    id: 'time-store',
     name: '时间存储',
-    category: 'qol',
+    category: 'time',
     description: '允许储存离线时间(选项页可切换)',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(10),
-    require: [['qol-offline', new Decimal(1)]],
+    require: [['time-offline', new Decimal(1)]],
     canBuy: () => true,
   },
   {
-    id: 'qol-offline-boost',
+    id: 'time-boost',
     name: '离线加速',
-    category: 'qol',
+    category: 'time',
     description: '离线时间可用于加速(稳定提升全局速度)',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(4),
-    require: [['qol-offline-store', new Decimal(1)]],
+    require: [['time-store', new Decimal(1)]],
     canBuy: () => true,
   },
   {
-    id: 'qol-pause',
+    id: 'time-pause',
     name: '时间暂停',
-    category: 'qol',
+    category: 'time',
     description: '允许主动暂停游戏,暂停期间时间储存为离线时间',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(2),
-    require: [['qol-offline-store', new Decimal(1)]],
+    require: [['time-store', new Decimal(1)]],
     canBuy: () => true,
   },
   {
-    id: 'qol-tick',
+    id: 'time-tick',
     name: 'TAS',
-    category: 'qol',
+    category: 'time',
     description: '解锁工具栏的时间流逝1帧按钮',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(1),
-    require: [['qol-pause', new Decimal(1)]],
+    require: [['time-pause', new Decimal(1)]],
     canBuy: () => true,
   },
   {
-    id: 'qol-boost',
+    id: 'time-overclock',
     name: '超频',
-    category: 'qol',
+    category: 'time',
     description: '加速倍率升级,每级开放更高倍率(x5/x10/x60)',
     maxAmount: new Decimal(3),
     cost(n: Decimal): Decimal {
       return new Decimal(10).pow(n)
     },
-    require: [['qol-offline-boost', new Decimal(1)]],
+    require: [['time-boost', new Decimal(1)]],
     canBuy: () => true,
   },
   {
@@ -240,4 +240,18 @@ registerEffect({
 /**当前全局速度(调试初始值经加成管道后的结果) */
 export function getPsdSpeed(): Decimal {
   return calculate('psdSpeed', { pos: [0], id: 0 }, new Decimal(1))
+}
+
+/**加速倍率档位(按time-overclock已购数解锁,始终包含1x与2x) */
+export function getBoostPresets(): number[] {
+  const tier = knowledgeAmount('time-overclock').toNumber()
+  return [
+    { mult: 1, unlocked: true },
+    { mult: 2, unlocked: true },
+    { mult: 5, unlocked: tier >= 1 },
+    { mult: 10, unlocked: tier >= 2 },
+    { mult: 60, unlocked: tier >= 3 },
+  ]
+    .filter((p) => p.unlocked)
+    .map((p) => p.mult)
 }

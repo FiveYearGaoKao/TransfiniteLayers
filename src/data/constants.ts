@@ -14,8 +14,6 @@ export const DIMENSION_COUNT: number = 4
 export const OFFLINE_THRESHOLD: number = 120
 /**日志的最大条数 */
 export const MAX_LOG_COUNT: number = 100
-/**知识标签解锁所需的知识数量 */
-export const KNOWLEDGE_UNLOCK_AMOUNT: number = 10
 /**1知识可兑换的离线时间(秒) */
 export const KNOWLEDGE_TIME_RATE: number = 60
 /**加速模式的默认倍率(1倍即关闭) */

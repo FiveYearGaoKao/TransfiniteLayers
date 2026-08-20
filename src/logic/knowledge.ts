@@ -6,6 +6,7 @@ import { KNOWLEDGE_TIME_RATE } from '@/data/constants'
 import {
   canBuyKnowledgeUpgrade,
   getKnowledgeUpgrade,
+  KNOWLEDGE_UPGRADES,
   knowledgeAmount,
   type KnowledgeUpgradeDef,
 } from '@/compute/knowledge'
@@ -82,4 +83,10 @@ export function convertOfflineToWarp(seconds: Decimal): Decimal {
  */
 export function convertOfflineToWarpPct(pct: number): Decimal {
   return convertOfflineToWarp(player.offlineTime.mul(pct))
+}
+/**调试用:把所有"时间"类知识升级(离线/暂停/加速等新机制)设为满级(忽略前置与知识消耗) */
+export function unlockAllUi() {
+  for (const def of KNOWLEDGE_UPGRADES) {
+    if (def.category == 'time') player.knowledgeUpgrades[def.id] = new Decimal(def.maxAmount)
+  }
 }

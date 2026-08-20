@@ -6,11 +6,11 @@ import { player } from '@/data/player'
 import { settings, saveSettings } from '@/settings'
 import {
   canShow,
+  getBoostPresets,
   getKnowledgeCategories,
   getPsdSpeed,
   getUpgradesByCategory,
   hasKnowledge,
-  knowledgeAmount,
 } from '@/compute/knowledge'
 import {
   buyOfflineTime,
@@ -21,23 +21,53 @@ import {
 } from '@/logic/knowledge'
 import KnowledgeItem from './knowledgeItem.vue'
 
-/**类别的显示名(未知类别显示原始id) */
+/**知识页的子标签 */
+const SUBTABS = [
+  { id: 'upgrades', name: '知识升级' },
+  { id: 'time', name: '时间' },
+] as const
+/**知识类别的显示名(未知类别显示原始id) */
 const CATEGORY_NAMES: Record<string, string> = {
-  offline: '离线时间',
-  qol: 'QoL',
+  time: '时间',
   bonus: '加成',
 }
-/**知识页的所有子标签:离线时间为特殊页,其余来自升级定义 */
-const cats = computed(() => ['offline', ...getKnowledgeCategories()])
+const subtab = ref('upgrades')
+/**所有已使用的升级类别 */
+const cats = computed(() => getKnowledgeCategories())
 /**类别的显示名 */
 function catName(c: string): string {
   return CATEGORY_NAMES[c] ?? c
 }
-const subtab = ref('offline')
-/**当前类别下按显示规则过滤的升级 */
-const visibleUpgrades = computed(() =>
-  getUpgradesByCategory(subtab.value).filter((def) => canShow(def, settings.hideMaxedKnowledge)),
-)
+/**某类别当前是否显示(缺省视为显示) */
+function isCatVisible(c: string): boolean {
+  return settings.knowledgeCategoryVisible[c] !== false
+}
+/**切换单个类别的显示 */
+function toggleCat(c: string) {
+  settings.knowledgeCategoryVisible[c] = !isCatVisible(c)
+  saveSettings()
+}
+/**是否所有类别都显示 */
+function allCatsVisible(): boolean {
+  return cats.value.every(isCatVisible)
+}
+/**总开关:全部显示时全部隐藏,否则全部显示 */
+function toggleAllCats() {
+  const target = !allCatsVisible()
+  for (const c of cats.value) settings.knowledgeCategoryVisible[c] = target
+  saveSettings()
+}
+/**当前显示的升级(按类别开关与"隐藏已满级"过滤) */
+const visibleUpgrades = computed(() => {
+  const res = []
+  for (const c of cats.value) {
+    if (!isCatVisible(c)) continue
+    for (const def of getUpgradesByCategory(c)) {
+      if (canShow(def, settings.hideMaxedKnowledge)) res.push(def)
+    }
+  }
+  return res
+})
 /**切换"隐藏已满级升级" */
 function toggleHideMaxed() {
   settings.hideMaxedKnowledge = !settings.hideMaxedKnowledge
@@ -53,21 +83,8 @@ const fixedPresets: { sec: Decimal; label: string }[] = [
 ]
 /**消耗/转换的比例预设 */
 const pctPresets: number[] = [0.1, 0.5, 1]
-/**解锁加速倍率的知识升级id */
-const BOOST_UPGRADE_ID = 'qol-boost'
-/**加速倍率档位(升级已购数0-3) */
-const boostTier = computed(() => knowledgeAmount(BOOST_UPGRADE_ID).toNumber())
 /**按档位过滤可见的加速倍率按钮 */
-const boostPresets = computed(() => {
-  const tier = boostTier.value
-  return [
-    { mult: 1, unlocked: true },
-    { mult: 2, unlocked: true },
-    { mult: 5, unlocked: tier >= 1 },
-    { mult: 10, unlocked: tier >= 2 },
-    { mult: 60, unlocked: tier >= 3 },
-  ].filter((p) => p.unlocked)
-})
+const boostPresets = computed(() => getBoostPresets())
 /**当前全局速度 */
 const psdSpeed = computed(() => getPsdSpeed())
 </script>
@@ -76,16 +93,44 @@ const psdSpeed = computed(() => getPsdSpeed())
     <span class="text bold">知识: {{ format(player.knowledge) }}</span>
     <div class="subtabRow">
       <button
-        v-for="c in cats"
-        :key="c"
-        :class="{ subTab: true, selected: subtab == c }"
-        @click="subtab = c"
+        v-for="t in SUBTABS"
+        :key="t.id"
+        :class="{ subTab: true, selected: subtab == t.id }"
+        @click="subtab = t.id"
       >
-        {{ catName(c) }}
+        {{ t.name }}
       </button>
     </div>
 
-    <div v-if="subtab == 'offline'" id="offline" class="section">
+    <template v-if="subtab == 'upgrades'">
+      <div class="row">
+        <button
+          :class="['toggle', allCatsVisible() ? 'toggle-on' : 'toggle-off']"
+          @click="toggleAllCats()"
+        >
+          全部:{{ allCatsVisible() ? '开' : '关' }}
+        </button>
+        <button
+          v-for="c in cats"
+          :key="c"
+          :class="['toggle', isCatVisible(c) ? 'toggle-on' : 'toggle-off']"
+          @click="toggleCat(c)"
+        >
+          {{ catName(c) }}:{{ isCatVisible(c) ? '开' : '关' }}
+        </button>
+        <button
+          :class="['toggle', settings.hideMaxedKnowledge ? 'toggle-on' : 'toggle-off']"
+          @click="toggleHideMaxed()"
+        >
+          隐藏已满级:{{ settings.hideMaxedKnowledge ? '开' : '关' }}
+        </button>
+      </div>
+      <div id="knowledgeUpgrades">
+        <KnowledgeItem v-for="def in visibleUpgrades" :key="def.id" :def="def" />
+      </div>
+    </template>
+
+    <div v-else id="offline" class="section">
       <div class="section">
         <span class="text bold">时间资源</span>
         <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span>
@@ -145,36 +190,22 @@ const psdSpeed = computed(() => getPsdSpeed())
         </div>
       </div>
 
-      <div class="section" v-if="hasKnowledge('qol-offline-boost')">
+      <div class="section" v-if="hasKnowledge('time-boost')">
         <span class="text bold">加速</span>
         <span class="text">加速消耗离线时间,稳定提升全局速度</span>
         <span class="text">当前全局速度: x{{ format(psdSpeed) }}</span>
         <div class="row">
           <button
             v-for="p in boostPresets"
-            :key="p.mult"
-            :class="['subTab', { selected: player.boostSpeed.eq(p.mult) }]"
-            @click="player.boostSpeed = new Decimal(p.mult)"
+            :key="p"
+            :class="['subTab', { selected: player.boostSpeed.eq(p) }]"
+            @click="player.boostSpeed = new Decimal(p)"
           >
-            x{{ p.mult }}
+            x{{ p }}
           </button>
         </div>
       </div>
     </div>
-
-    <template v-else>
-      <div class="row">
-        <button
-          :class="['toggle', settings.hideMaxedKnowledge ? 'toggle-on' : 'toggle-off']"
-          @click="toggleHideMaxed()"
-        >
-          隐藏已满级:{{ settings.hideMaxedKnowledge ? '开' : '关' }}
-        </button>
-      </div>
-      <div id="knowledgeUpgrades">
-        <KnowledgeItem v-for="def in visibleUpgrades" :key="def.id" :def="def" />
-      </div>
-    </template>
   </div>
 </template>
 <style scoped>

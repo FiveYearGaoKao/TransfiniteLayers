@@ -57,7 +57,7 @@ export function mainLoop() {
   } else if (dt.gte(OFFLINE_THRESHOLD)) {
     //若距上一次加载超过一定时间，则认为玩家离线
     addLog('info', `欢迎回来!你离线了${formatTime(dt)}.`)
-    if (hasKnowledge('qol-offline')) {
+    if (hasKnowledge('time-offline')) {
       //离线进度:默认(或仅有离线进度升级时)全部转为加速时间,购买"离线去向"后可选择储存或询问
       if (player.offlineMode == 'ask') {
         //询问:离线结束时弹出对话框,由玩家决定储存或加速

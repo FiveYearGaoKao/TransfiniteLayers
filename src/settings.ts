@@ -34,6 +34,8 @@ export interface Settings {
   logFilter: Record<logType, boolean>
   /**知识页是否隐藏已满级的知识升级 */
   hideMaxedKnowledge: boolean
+  /**知识页各类别是否显示(缺省视为显示),键为类别id */
+  knowledgeCategoryVisible: Record<string, boolean>
   /**普通重置前是否二次确认 */
   resetConfirm: boolean
 }
@@ -49,6 +51,7 @@ export function defaultSettings(): Settings {
     showLog: true,
     logFilter: { info: true, warning: true, error: true, progress: true, automator: true },
     hideMaxedKnowledge: true,
+    knowledgeCategoryVisible: {},
     resetConfirm: true,
   }
 }

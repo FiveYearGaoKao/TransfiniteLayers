@@ -40,8 +40,6 @@ export interface Player {
   base: number
   achievements: string[]
   knowledge: Decimal
-  /**是否已解锁知识标签(永久) */
-  knowledgeUnlocked: boolean
   /**各知识升级的已购数量 */
   knowledgeUpgrades: Record<string, Decimal>
   /**加速的目标倍率(1倍即关闭) */
@@ -81,7 +79,6 @@ export function initializeSave(): Player {
     base: INITIAL_BASE,
     achievements: [],
     knowledge: new Decimal(0),
-    knowledgeUnlocked: false,
     knowledgeUpgrades: {},
     boostSpeed: new Decimal(DEFAULT_BOOST_SPEED),
     automations: {},

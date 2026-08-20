@@ -12,7 +12,6 @@ import {
 } from '@/access'
 import { buyableAmount } from '@/compute/buyables'
 import { dimensionMultiplier } from '@/compute/dimensions'
-import { KNOWLEDGE_UNLOCK_AMOUNT } from '@/data/constants'
 import {
   effectValueById,
   registerEffect,
@@ -297,10 +296,6 @@ for (const a of achievements) {
 export function updateAchievements() {
   for (const def of achievements) {
     if (!player.achievements.includes(def.id) && def.isCompleted()) unlockAchievement(def)
-  }
-  //知识达到一定数量后永久解锁知识标签
-  if (!player.knowledgeUnlocked && player.knowledge.gte(KNOWLEDGE_UNLOCK_AMOUNT)) {
-    player.knowledgeUnlocked = true
   }
 }
 

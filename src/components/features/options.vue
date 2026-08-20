@@ -4,18 +4,15 @@ import Decimal, { type DecimalSource } from 'break_eternity.js'
 import { formatTime, format } from '@/tools/format'
 import { player } from '@/data/player'
 import {
-  hardReset,
   importSaveString,
   exportSaveString,
   localSave,
-  localLoad,
-  setCurrentSlot,
-  hasSlotSave,
 } from '@/save/save'
-import { openConfirm, openSlots } from '@/dialog'
 import { settings, saveSettings, cycleTheme, THEMES, type Settings } from '@/settings'
 import { temp } from '@/temp'
 import { type logType, addLog } from '@/log'
+import { doHardReset, doLoad, doSave } from '@/saveActions'
+import { unlockAllUi } from '@/logic/knowledge'
 import { gameVersion, DIMENSION_COUNT } from '@/data/constants'
 import { CHANGELOG } from '@/data/changelog'
 import {
@@ -31,6 +28,8 @@ import { hasKnowledge } from '@/compute/knowledge'
 
 type optionsTab = 'settings' | 'about' | 'statistics'
 const subtab = ref<optionsTab>('settings')
+/**是否为生产构建(发布版),调试区入口在发布版中隐藏 */
+const isProd = import.meta.env.PROD
 
 /**导出存档 */
 const exportText = ref('')
@@ -51,47 +50,6 @@ function doImport() {
   if (importSaveString(exportText.value)) {
     exportText.value = ''
   }
-}
-/**保存到所选槽位(弹出槽位选择框) */
-async function doSave() {
-  const slot = await openSlots({ title: '选择保存槽位', mode: 'save' })
-  if (slot != null) {
-    localSave(slot)
-    setCurrentSlot(slot)
-    addLog('info', `已保存到槽位 ${slot + 1}`)
-  }
-}
-/**从所选槽位读档(读档前自动保存当前进度;空槽位自动创建新存档) */
-async function doLoad() {
-  const slot = await openSlots({ title: '选择读档槽位', mode: 'load' })
-  if (slot == null) return
-  localSave()
-  let ok = false
-  try {
-    ok = localLoad(slot)
-  } catch {
-    ok = false
-  }
-  if (ok) {
-    setCurrentSlot(slot)
-    addLog('info', `已从槽位 ${slot + 1} 读档`)
-  } else if (hasSlotSave(slot)) {
-    addLog('error', `槽位 ${slot + 1} 读档失败,存档内容可能无效`)
-  } else {
-    setCurrentSlot(slot)
-    hardReset()
-    addLog('info', `槽位 ${slot + 1} 为空,已自动创建新存档`)
-  }
-}
-/**硬重置(始终二次确认) */
-async function doHardReset() {
-  const confirmed = await openConfirm({
-    title: '硬重置',
-    text: '将清空所有进度并重新开始!\n此操作不可撤销,建议先导出存档。',
-    confirmText: '确认重置',
-    cancelText: '取消',
-  })
-  if (confirmed) hardReset()
 }
 /**当前主题的名称 */
 const themeName = computed(() => THEMES.find((t) => t.id == settings.theme)?.name ?? settings.theme)
@@ -346,7 +304,7 @@ const flatTree = computed<FlatRow[]>(() => {
             重置二次确认：{{ settings.resetConfirm ? '开' : '关' }}
           </button>
           <button
-            v-if="hasKnowledge('qol-offline-store')"
+            v-if="hasKnowledge('time-store')"
             class="toggle"
             title="询问模式会在离线结束时弹出选择"
             @click="cycleOfflineMode()"
@@ -394,9 +352,22 @@ const flatTree = computed<FlatRow[]>(() => {
           <button class="bad" @click="doHardReset()">硬重置</button>
         </div>
       </div>
-      <div class="section">
+      <div v-if="!isProd" class="section">
         <span class="text bold">调试</span>
         <div class="row">
+          <button
+            :class="['toggle', temp.debugMode ? 'toggle-on' : 'toggle-off']"
+            @click="temp.debugMode = !temp.debugMode"
+          >
+            调试模式：{{ temp.debugMode ? '开' : '关' }}
+          </button>
+        </div>
+        <div v-if="temp.debugMode" class="row">
+          <button class="toggle" title="将QoL类知识升级直接设满并解锁知识页,无需前置与知识" @click="unlockAllUi()">
+            解锁所有UI
+          </button>
+        </div>
+        <div v-if="temp.debugMode" class="row">
           <span class="text">全局速度初始值(不存档)</span>
           <input
             :value="temp.debugSpeed.toString()"
