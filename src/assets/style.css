@@ -108,6 +108,7 @@ body {
 .subtabRow {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 6px;
 }
 /*------表单控件------*/

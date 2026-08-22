@@ -115,7 +115,7 @@ export const UPGRADES: UpgradeDef[] = [
         if (!L) return 0
         return dimensionTotalBought(ctx.pos).mul(FREE_LEVEL_FACTOR).add(L.upgrades.length).floor()
       },
-      text: '额外加速器等级 +{value}',
+      text: '当前: +{value}',
     },
     isUnlocked: (_layer: LayerId) => hasAchievement('a16'),
   },

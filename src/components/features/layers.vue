@@ -7,7 +7,14 @@ import { getBuyables, isUnlocked as isBuyableUnlocked } from '@/compute/buyables
 import { getUpgrades, isUnlocked as isUpgradeUnlocked } from '@/compute/upgrades'
 import { energyBonus } from '@/compute/energy'
 import { buyDimension, canAfford } from '@/logic/purchase'
-import { dimsAutoUnlocked, isAutoItem, resetAutoEnabled, resetAutoUnlocked, toggleAutoItem, toggleResetAuto } from '@/logic/automations'
+import {
+  dimsAutoUnlocked,
+  isAutoItem,
+  resetAutoEnabled,
+  resetAutoUnlocked,
+  toggleAutoItem,
+  toggleResetAuto,
+} from '@/logic/automations'
 import { canReset, resetGain } from '@/compute/prestige'
 import { resetLayerConfirm, resetRunConfirm } from '@/uiActions'
 import { isChallengeActive } from '@/access'
@@ -35,9 +42,7 @@ const upgradeList = computed(() =>
   ),
 )
 /**是否显示"放弃本轮"(挑战4激活且当前层不是临时层,临时层重置会无条件解锁新层级) */
-const showResetRun = computed(
-  () => isChallengeActive('c4') && !player.layerSubtab.includes(-1),
-)
+const showResetRun = computed(() => isChallengeActive('c4') && !player.layerSubtab.includes(-1))
 </script>
 <template>
   <div id="layers" style="height: 100%">
@@ -61,10 +66,10 @@ const showResetRun = computed(
       <button
         v-if="showResetRun"
         class="toggle toggle-off"
-        title="挑战4后悔:不获得资源强制重置本层及下层,清除已购以恢复价格"
+        title="不获得资源强制重置本层及下层,清除已购以恢复价格"
         @click="resetRunConfirm()"
       >
-        放弃本轮
+        重开本轮
       </button>
     </div>
 

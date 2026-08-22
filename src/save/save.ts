@@ -65,7 +65,7 @@ export function getSlotSummary(slot: number): SlotSummary {
     res.exists = true
     res.totalTime = new Decimal(saveFile.totalTime ?? 0)
     res.points = new Decimal(saveFile.layers?.['0']?.points ?? 0)
-    res.achievements = saveFile.achievements?.length ?? 0
+    res.achievements = saveFile.achievements?.filter((x) => x.startsWith('a')).length ?? 0
     res.version = saveFile.version ?? ''
   } catch {
     //存档损坏时按空槽位处理
@@ -156,10 +156,7 @@ function load(s: string): number {
   if (saveFile == null || typeof saveFile != 'object') {
     addLog('error', '导入失败!存档格式不正确![错误代码:101]')
     return 101
-  } else if (
-    versionComp(saveFile.version, CHECKSUM_VERSION) >= 0 &&
-    !verifySave(saveFile)
-  ) {
+  } else if (versionComp(saveFile.version, CHECKSUM_VERSION) >= 0 && !verifySave(saveFile)) {
     addLog('error', '导入失败!存档疑似被修改过![错误代码:250]')
     unlockSecretFlag('cheater')
     return 250

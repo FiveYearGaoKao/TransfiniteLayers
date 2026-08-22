@@ -10,11 +10,7 @@ import { NEWS_COUNT } from '@/news'
 import { buildGlobalNodes, buildLayerNodes, type StatNode } from '@/compute/statistics'
 import LayerSelect from './layerSelect.vue'
 import StatTree from './statTree.vue'
-import {
-  importSaveString,
-  exportSaveString,
-  localSave,
-} from '@/save/save'
+import { importSaveString, exportSaveString, localSave } from '@/save/save'
 import { settings, saveSettings, cycleTheme, THEMES, type Settings } from '@/settings'
 import { temp } from '@/temp'
 import { type logType, addLog } from '@/log'
@@ -32,7 +28,8 @@ const OPTIONS_TABS: optionsTab[] = ['settings', 'hotkeys', 'about', 'changelog',
 onMounted(() =>
   registerSubtabCycler('options', (dir) => {
     const idx = OPTIONS_TABS.indexOf(subtab.value)
-    subtab.value = OPTIONS_TABS[(idx + dir + OPTIONS_TABS.length) % OPTIONS_TABS.length] ?? 'settings'
+    subtab.value =
+      OPTIONS_TABS[(idx + dir + OPTIONS_TABS.length) % OPTIONS_TABS.length] ?? 'settings'
   }),
 )
 onUnmounted(() => unregisterSubtabCycler('options'))
@@ -181,7 +178,10 @@ const activeLayers = computed(() =>
 <template>
   <div id="options">
     <div class="subtabRow">
-      <button :class="{ subTab: true, selected: subtab == 'settings' }" @click="subtab = 'settings'">
+      <button
+        :class="{ subTab: true, selected: subtab == 'settings' }"
+        @click="subtab = 'settings'"
+      >
         设置
       </button>
       <button :class="{ subTab: true, selected: subtab == 'hotkeys' }" @click="subtab = 'hotkeys'">
@@ -341,7 +341,11 @@ const activeLayers = computed(() =>
           </button>
         </div>
         <div v-if="temp.debugMode" class="row">
-          <button class="toggle" title="将QoL类知识升级直接设满并解锁知识页,无需前置与知识" @click="unlockAllUi()">
+          <button
+            class="toggle"
+            title="将QoL类知识升级直接设满并解锁知识页,无需前置与知识"
+            @click="unlockAllUi()"
+          >
             解锁所有UI
           </button>
         </div>
@@ -366,7 +370,9 @@ const activeLayers = computed(() =>
     </div>
 
     <div v-if="subtab == 'about'" id="about" class="section">
-      <span class="text bold">版本: <span class="version">{{ gameVersion }}</span></span>
+      <span class="text bold"
+        >版本: <span class="version">{{ gameVersion }}</span></span
+      >
       <div class="section box left">
         <span class="text bold">版本终局(v0.1.0)</span>
         <span class="text">目标: 层级0点数达到 1.79e308,解锁"无限"。</span>
@@ -376,7 +382,9 @@ const activeLayers = computed(() =>
       </div>
       <div class="section box left">
         <span class="text bold">如何游玩</span>
-        <span class="text">核心循环: 生产点数 → 重置晋升 → 解锁更高层级 → 能量反馈 → 更快生产。</span>
+        <span class="text"
+          >核心循环: 生产点数 → 重置晋升 → 解锁更高层级 → 能量反馈 → 更快生产。</span
+        >
         <span class="text">知识是跨重置货币: 成就/签到/答题获得,用于购买知识升级。</span>
         <span class="text">挑战页在成就 a28(Googol)后解锁;自动化首次购买 u4 后永久开放。</span>
         <span class="text">快捷键列表见"快捷键"页;详细玩法见文档 docs/面向玩家/玩法指南.md。</span>
@@ -385,7 +393,7 @@ const activeLayers = computed(() =>
 
     <div v-if="subtab == 'changelog'" id="changelog" class="section">
       <div v-for="c in CHANGELOG" :key="c.version" class="changelog">
-        <span class="text bold version">{{ c.version }}</span>
+        <span class="text bold version">{{ c.version }}{{ c.name ? ` - ${c.name}` : '' }} </span>
         <ul class="changelogNotes">
           <li v-for="note in c.notes" :key="note" class="text">{{ note }}</li>
         </ul>
@@ -428,7 +436,7 @@ const activeLayers = computed(() =>
           <span class="text">游戏时间: {{ formatTime(player.totalTime) }}</span>
           <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span>
           <span class="text">加速时间: {{ formatTime(player.warpTime) }}</span>
-          <span class="text">层级0累计生产(永不清除): {{ format(player.totalPoints) }}</span>
+          <span class="text">层级0累计生产: {{ format(player.totalPoints) }}</span>
         </div>
         <div class="section box left">
           <span class="text bold">全局统计</span>
@@ -436,15 +444,18 @@ const activeLayers = computed(() =>
           <span class="text">成功使用的指令: {{ player.commandCount }}</span>
           <span class="text">答题次数: {{ player.quizCount }}</span>
           <span class="text"
-            >签到: 连续{{ player.checkin.streak }}天 ·
-            上次:{{ player.checkin.lastDay || '从未' }}</span
+            >签到: 连续{{ player.checkin.streak }}天 · 上次:{{
+              player.checkin.lastDay || '从未'
+            }}</span
           >
         </div>
         <div class="section box left">
           <span class="text bold">层级资源</span>
           <div v-for="l in activeLayers" :key="l.key" class="layerStats">
             <span class="text bold layerName">{{ l.name }}</span>
-            <span class="text">点数: {{ format(l.L.points) }} · 能量: {{ format(l.L.energy) }}</span>
+            <span class="text"
+              >点数: {{ format(l.L.points) }} · 能量: {{ format(l.L.energy) }}</span
+            >
             <span class="text"
               >重置时间: {{ formatTime(l.L.resetTime) }} · 重置次数:
               {{ formatWhole(l.L.resetCount) }}</span

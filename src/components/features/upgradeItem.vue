@@ -6,6 +6,7 @@ import { canBuyUpgrade, hasUpgrade, upgradeCost, upgradeEffectText } from '@/com
 import { buyUpgrade } from '@/logic/purchase'
 import { isAutoItem } from '@/logic/automations'
 
+//自动升级的样式暂时放弃
 const props = defineProps<{
   pos: LayerId
   def: UpgradeDef
@@ -19,7 +20,7 @@ const autoOn = () => isAutoItem(props.pos, 'upgrades', props.def.id)
       'upgrade',
       hasUpgrade(props.pos, props.def.id) ? 'bought' : '',
       canBuyUpgrade(props.pos, props.def.id) ? 'affordable' : '',
-      autoOn() ? 'auto' : '',
+      // autoOn() ? 'auto' : '',
     ]"
     :disabled="!canBuyUpgrade(props.pos, props.def.id)"
     @click="buyUpgrade(props.pos, props.def.id)"
@@ -30,7 +31,7 @@ const autoOn = () => isAutoItem(props.pos, 'upgrades', props.def.id)
     <span class="text" v-if="!hasUpgrade(props.pos, props.def.id)">
       价格: {{ formatWhole(upgradeCost(props.pos, props.def.id)) }}
     </span>
-    <span v-if="autoOn()" class="autoTag">自动</span>
+    <span v-if="autoOn()" class="autoTag">Auto</span>
   </button>
 </template>
 <style scoped>
@@ -45,8 +46,9 @@ span.autoTag {
   top: 2px;
   right: 2px;
   font-size: 10px;
-  color: var(--accent);
-  border: 1px solid var(--accent);
+  color: var(--text);
+  /* color: var(--accent);
+  border: 1px solid var(--accent); */
   padding: 0 3px;
   border-radius: 3px;
 }

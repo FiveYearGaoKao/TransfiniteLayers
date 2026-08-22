@@ -117,7 +117,7 @@ function productionNode(pos: LayerId, id: number): StatNode {
   const exponent = dimensionExponent(pos, id)
   const multExpBase = amount.mul(mult).pow(exponent)
   const children: StatNode[] = [
-    { key: `${key}:init`, label: '初始值(维度总数)', sign: '', value: amount, children: [] },
+    { key: `${key}:init`, label: '维度总量', sign: '', value: amount, children: [] },
     {
       key: `${key}:mult`,
       label: '维度乘数',
@@ -163,9 +163,7 @@ function pointsGainNode(pos: LayerId): StatNode {
   //初始值:层0为维度1原始产量(不含点数获取),层1+为重置收益基础值
   let base: Decimal
   if (isLayer0(pos)) {
-    base = dimensionAmount(pos, 0)
-      .mul(dimensionMultiplier(pos, 0))
-      .pow(dimensionExponent(pos, 0))
+    base = dimensionAmount(pos, 0).mul(dimensionMultiplier(pos, 0)).pow(dimensionExponent(pos, 0))
     base = calculate('production', ctx, base)
   } else {
     base = resetGainBase(pos)
