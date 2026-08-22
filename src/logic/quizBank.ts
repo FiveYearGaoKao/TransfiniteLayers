@@ -35,7 +35,7 @@ const BANK: BankQuestionDef[] = [
   },
   {
     id: 'bank-base',
-    text: '序数进制(层级的进位)初始值是多少?',
+    text: '《序数增量中》，序数进制的初始值是多少?',
     options: ['8', '10', '2', '100'],
     correct: 1,
     unlocked: () => true,
@@ -43,7 +43,7 @@ const BANK: BankQuestionDef[] = [
   {
     id: 'bank-ad',
     text: '《反物质维度》中,点数达到1.8e308后解锁什么?',
-    options: ['无限', '奇点', '树', '序数'],
+    options: ['无限', '永恒', '现实', '天体'],
     correct: 0,
     unlocked: () => true,
   },
@@ -84,7 +84,7 @@ const BANK: BankQuestionDef[] = [
   },
   {
     id: 'bank-challenge',
-    text: '挑战1(无加速器)中哪种可购买无效?',
+    text: '挑战1中哪种可购买无效?',
     options: ['加速器', '加倍器', '加速器加成', '维度'],
     correct: 0,
     unlocked: () => hasAchievement('a28'),
