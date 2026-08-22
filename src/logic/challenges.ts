@@ -190,7 +190,7 @@ function challengePenaltyEffect(def: ChallengeDef, e: EffectDef, i: number): Reg
   return {
     ...e,
     id: `challenge-${def.id}-penalty-${i}`,
-    name: def.name,
+    name: `挑战惩罚-${def.name}`,
     isActive: () => isActive(def),
   }
 }
@@ -200,7 +200,7 @@ function challengeRewardEffect(def: ChallengeDef, e: EffectDef, i: number): Regi
   return {
     ...e,
     id: `challenge-${def.id}-reward-${i}`,
-    name: def.name,
+    name: `挑战奖励-${def.name}`,
     isActive: () => completions(def).gt(0),
   }
 }

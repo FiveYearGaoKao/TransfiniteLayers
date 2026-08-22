@@ -9,7 +9,7 @@ import {
   hasAchievement,
 } from '@/access'
 import { temp } from '@/temp'
-import { format } from '@/tools/format'
+import { format, formatWhole } from '@/tools/format'
 import {
   calculate,
   effectText,
@@ -96,7 +96,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     id: 'time-overclock',
     name: '超频',
     category: 'time',
-    description: '加速倍率升级,每级开放更高倍率(x5/x10/x60)',
+    description: '加速倍率升级,每级开放更高倍率(x5/x15/x60)',
     maxAmount: new Decimal(3),
     cost(n: Decimal): Decimal {
       return new Decimal(10).pow(n.add(1))
@@ -132,7 +132,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     require: [],
     canBuy: () => true,
     effect: {
-      target: 'production',
+      target: 'dimensionMult',
       type: 'mul',
       value: () => new Decimal(1.1).pow(knowledgeAmount('boost-production')),
       text: '所有维度生产 x{value}',
@@ -189,8 +189,11 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     },
     require: [['command-quiz', new Decimal(1)]],
     canBuy: () => true,
-    effectText(): string {
-      return `答题冷却 x${format(new Decimal(0.9).pow(knowledgeAmount('quiz-accel')))}`
+    effect: {
+      target: 'quizCooldown',
+      type: 'mul',
+      value: () => new Decimal(0.9).pow(knowledgeAmount('quiz-accel')),
+      text: '答题冷却 x{value}',
     },
   },
   {
@@ -212,13 +215,16 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     id: 'auto-batch',
     name: '自动批量',
     category: 'auto',
-    description: '解锁自动化的"买最大"模式,每帧至多购买2^等级个(需成就:解放双手)',
+    description: '解锁自动化的"买最大"模式,每级使批量购买数量翻倍',
     maxAmount: new Decimal(10),
     cost(n: Decimal): Decimal {
       return new Decimal(5).mul(new Decimal(2).pow(n)).floor()
     },
     require: [],
     canBuy: () => hasAchievement('a21'),
+    effectText() {
+      return `每次购买 ${formatWhole(new Decimal(2).pow(knowledgeAmount('auto-batch')))} 个`
+    },
   },
   {
     id: 'auto-upgrade',
@@ -292,7 +298,7 @@ function knowledgeEffect(def: KnowledgeUpgradeDef): RegisteredEffect | undefined
   return {
     ...def.effect,
     id: `knowledge-${def.id}`,
-    name: def.name,
+    name: `知识升级-${def.name}`,
     isActive: (ctx) => def.effect!.isActive?.(ctx) ?? hasKnowledge(def.id),
   }
 }
@@ -333,16 +339,6 @@ registerEffect({
   text: '全局速度 x{value}',
 })
 
-//答题冷却经加成管道注册,可在统计页查看明细
-registerEffect({
-  id: 'quiz-cooldown',
-  name: '答题冷却',
-  target: 'quizCooldown',
-  type: 'mul',
-  value: () => new Decimal(0.9).pow(knowledgeAmount('quiz-accel').toNumber()),
-  text: '答题冷却 x{value}',
-})
-
 /**当前全局速度(调试初始值经加成管道后的结果) */
 export function getPsdSpeed(): Decimal {
   return calculate('psdSpeed', { pos: [0], id: 0 }, new Decimal(1))
@@ -355,7 +351,7 @@ export function getBoostPresets(): number[] {
     { mult: 1, unlocked: true },
     { mult: 2, unlocked: true },
     { mult: 5, unlocked: tier >= 1 },
-    { mult: 10, unlocked: tier >= 2 },
+    { mult: 15, unlocked: tier >= 2 },
     { mult: 60, unlocked: tier >= 3 },
   ]
     .filter((p) => p.unlocked)

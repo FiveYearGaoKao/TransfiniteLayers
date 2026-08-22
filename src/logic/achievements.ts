@@ -442,7 +442,7 @@ function achievementEffect(def: AchievementDef): RegisteredEffect | undefined {
   return {
     ...def.effect,
     id: `achievement-${def.id}`,
-    name: def.name,
+    name: `成就奖励-${def.name}`,
     isActive: () => hasAchievement(def.id),
   }
 }
