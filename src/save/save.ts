@@ -1,9 +1,9 @@
 //关于存档读取、导入的一些函数
-import Decimal, { type DecimalSource } from 'break_eternity.js'
+import Decimal from 'break_eternity.js'
 import { compressToBase64, decompressFromBase64 } from 'lz-string'
 import { player, type Player, initializeSave } from '@/data/player'
 import { gameName, gameVersion, EARLIEST_SAVE_TIME, SAVE_SLOT_COUNT } from '@/data/constants'
-import { getLayer } from '@/access'
+import { getLayer, unlockSecretFlag } from '@/access'
 import { seedRng } from './rng'
 import { migrate } from './migration'
 import { checkCode, CHECKSUM_VERSION, CHECKSUM_SALT } from './checksum'
@@ -85,7 +85,7 @@ export function hasSlotSave(slot: number): boolean {
 /**player中类型为Decimal的属性名 */
 type decimalKey = { [K in keyof Player]: Player[K] extends Decimal ? K : never }[keyof Player]
 /**将player中类型为Decimal的属性key增加value */
-export function addValue(key: decimalKey, value: DecimalSource) {
+export function addValue(key: decimalKey, value: Decimal) {
   player[key] = player[key].add(value)
 }
 
@@ -161,6 +161,7 @@ function load(s: string): number {
     !verifySave(saveFile)
   ) {
     addLog('error', '导入失败!存档疑似被修改过![错误代码:250]')
+    unlockSecretFlag('cheater')
     return 250
   } else if (saveFile.lastPlay > Date.now()) {
     addLog('error', '导入失败!存档来自未来，加载它可能导致时空错乱![错误代码:301]')
@@ -183,10 +184,11 @@ function load(s: string): number {
     if (versionComp(saveFile.version, gameVersion) < 0) {
       addLog('warning', '存档版本过旧,部分迁移未执行,缺失内容已按默认值补齐')
     }
+    //结构性校验(游戏未发布,无旧档迁移;缺失字段由initializeSave默认值覆盖)
     if (!(player.seed >= 0)) player.seed = 0
     if (!['warp', 'store', 'ask'].includes(player.offlineMode)) player.offlineMode = 'warp'
     if (getLayer(player.layerSubtab) == null) player.layerSubtab = [0]
-    seedRng(player.seed)
+    seedRng(player.rngState ?? player.seed)
     return 0
   }
 }

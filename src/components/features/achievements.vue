@@ -1,12 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { player } from '@/data/player'
-import { getAchievements, type AchievementDef } from '@/logic/achievements'
-import { format } from '@/tools/format'
+import {
+  getNormalAchievements,
+  getSecretAchievements,
+  type AchievementDef,
+} from '@/logic/achievements'
+import { registerSubtabCycler, unregisterSubtabCycler } from '@/navigation'
 import { STORY } from '@/data/story'
 
-type achTab = 'achievements' | 'story'
+type achTab = 'achievements' | 'secrets' | 'story'
 const subtab = ref<achTab>('achievements')
+/**成就页子标签的循环切换(快捷键左右键用) */
+const ACH_TABS: achTab[] = ['achievements', 'secrets', 'story']
+onMounted(() =>
+  registerSubtabCycler('achievements', (dir) => {
+    const idx = ACH_TABS.indexOf(subtab.value)
+    subtab.value = ACH_TABS[(idx + dir + ACH_TABS.length) % ACH_TABS.length] ?? 'achievements'
+  }),
+)
+onUnmounted(() => unregisterSubtabCycler('achievements'))
+/**普通(非隐藏)成就列表 */
+const normalAchs = computed(() => getNormalAchievements())
+/**隐藏成就列表 */
+const secretAchs = computed(() => getSecretAchievements())
+/**已解锁的非隐藏成就数 */
+const unlockedNormalCount = computed(
+  () => player.achievements.filter((id) => normalAchs.value.some((a) => a.id == id)).length,
+)
+/**某成就是否已解锁 */
+function isUnlocked(a: AchievementDef): boolean {
+  return player.achievements.includes(a.id)
+}
+/**成就显示名称(隐藏成就的名称作为提示,始终显示) */
+function achName(a: AchievementDef): string {
+  return a.name
+}
+/**成就显示描述(未解锁的隐藏成就显示"???") */
+function achDesc(a: AchievementDef): string {
+  return a.secret && !isUnlocked(a) ? '???' : a.description
+}
 /**当前悬停的成就及其tooltip位置 */
 const tip = ref<{ def: AchievementDef; x: number; y: number } | null>(null)
 /**显示成就tooltip(定位在卡片上方) */
@@ -24,31 +57,50 @@ function showTip(def: AchievementDef, e: MouseEvent) {
       >
         成就
       </button>
+      <button :class="{ subTab: true, selected: subtab == 'secrets' }" @click="subtab = 'secrets'">
+        隐藏成就
+      </button>
       <button :class="{ subTab: true, selected: subtab == 'story' }" @click="subtab = 'story'">
         剧情
       </button>
     </div>
 
     <div v-if="subtab == 'achievements'">
-      <span class="text"
-        >已解锁成就: {{ player.achievements.length }} / {{ getAchievements().length }}，知识:
-        {{ format(player.knowledge) }}</span
-      >
+      <span class="text">已解锁成就: {{ unlockedNormalCount }} / {{ normalAchs.length }}</span>
       <div id="achievementList">
         <div
-          v-for="a in getAchievements()"
+          v-for="a in normalAchs"
           :key="a.id"
-          :class="['achievement', player.achievements.includes(a.id) ? 'bought' : '']"
+          :class="['achievement', isUnlocked(a) ? 'bought' : '']"
           @mouseenter="showTip(a, $event)"
           @mouseleave="tip = null"
         >
-          <span class="text name">{{ a.name }}</span>
+          <span class="text name">{{ achName(a) }}</span>
           <span class="text reward">+{{ a.reward }} 知识</span>
         </div>
       </div>
     </div>
 
-    <div v-if="subtab == 'story'" id="storyList">
+    <div v-else-if="subtab == 'secrets'">
+      <span class="text"
+        >已解锁隐藏成就: {{ player.achievements.filter((id) => secretAchs.some((a) => a.id == id)).length }} /
+        {{ secretAchs.length }}</span
+      >
+      <div id="achievementList">
+        <div
+          v-for="a in secretAchs"
+          :key="a.id"
+          :class="['achievement', isUnlocked(a) ? 'bought' : '']"
+          @mouseenter="showTip(a, $event)"
+          @mouseleave="tip = null"
+        >
+          <span class="text name">{{ achName(a) }}</span>
+          <span class="text reward">+{{ a.reward }} 知识</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-else id="storyList">
       <span v-if="STORY.length == 0" class="text">暂无剧情</span>
       <div v-for="c in STORY" :key="c.id" class="story" :class="{ locked: !c.isUnlocked() }">
         <span class="text bold">{{ c.title }}</span>
@@ -59,7 +111,7 @@ function showTip(def: AchievementDef, e: MouseEvent) {
   </div>
   <Teleport to="body">
     <div v-if="tip" class="achievementTip" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
-      {{ tip.def.description }}
+      {{ achDesc(tip.def) }}
       <div v-if="tip.def.effectText" class="effect">{{ tip.def.effectText }}</div>
     </div>
   </Teleport>
@@ -88,7 +140,10 @@ div.achievement {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
+  height: 52px;
+  box-sizing: border-box;
   &.bought {
     border-color: var(--good-border);
     background-color: var(--good-bg);
@@ -114,7 +169,7 @@ div.achievementTip {
   pointer-events: none;
 }
 div.achievementTip .effect {
-  color: var(--good-border);
+  color: var(--accent);
   margin-top: 2px;
 }
 div.story {

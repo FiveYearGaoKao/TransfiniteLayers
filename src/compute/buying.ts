@@ -31,10 +31,12 @@ export function sumCost(item: BuyableItem, k: Decimal): Decimal {
 /**二分的迭代上界，防止异常情况下无限循环 */
 const MAX_ITER = 2000
 
-/**在预算内最多可购买数量(通用二分，允许少量误差) */
+/**在预算内最多可购买数量(倍增上界+二分+按边际成本分段修正,允许少量误差) */
 export function maxBuyable(item: BuyableItem, budget: Decimal): Decimal {
-  if (budget.lt(1)) return new Decimal(0)
+  const n0 = item.amount()
   const sum = (k: Decimal) => sumCost(item, k)
+  //连第一个都买不起则返回0
+  if (sum(new Decimal(1)).gt(budget)) return new Decimal(0)
   //倍增上界:从2开始平方,次数约为log2(log2(k))
   let lo = new Decimal(0)
   let hi = new Decimal(2)
@@ -52,8 +54,12 @@ export function maxBuyable(item: BuyableItem, budget: Decimal): Decimal {
     if (sum(mid).lte(budget)) lo = mid
     else hi = mid
   }
-  //微调验证(允许sumCost近似误差)
+  //分段修正:二分只保证sumCost近似下的最优,用下一个价格的边际成本把剩余预算成块花掉,避免逐1累加
   iter = 0
-  while (sum(lo.add(1)).lte(budget) && iter++ < MAX_ITER) lo = lo.add(1)
+  while (iter++ < MAX_ITER) {
+    if (sum(lo.add(1)).gt(budget)) break
+    const step = budget.sub(sum(lo)).div(item.cost(n0.add(lo))).floor().max(1)
+    lo = lo.add(step)
+  }
   return lo
 }

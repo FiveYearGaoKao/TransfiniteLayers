@@ -1,6 +1,7 @@
 //设置(纯呈现偏好，独立于存档，存放在localStorage)
 import { reactive } from 'vue'
 import { gameName } from '@/data/constants'
+import { unlockSecretFlag } from '@/access'
 import { type logType } from '@/log'
 
 export type themeType = 'dark' | 'light'
@@ -38,6 +39,10 @@ export interface Settings {
   knowledgeCategoryVisible: Record<string, boolean>
   /**普通重置前是否二次确认 */
   resetConfirm: boolean
+  /**是否启用快捷键 */
+  hotkeys: boolean
+  /**资源栏显示的条目(键为资源id,见resourceRegistry) */
+  resourceBarItems: Record<string, boolean>
 }
 
 /**默认设置 */
@@ -53,6 +58,8 @@ export function defaultSettings(): Settings {
     hideMaxedKnowledge: true,
     knowledgeCategoryVisible: {},
     resetConfirm: true,
+    hotkeys: true,
+    resourceBarItems: { highest: true, points: true, otherLayers: true, knowledge: true, challenge: true },
   }
 }
 
@@ -83,11 +90,19 @@ export function applyTheme() {
   document.body.classList.add(settings.theme)
 }
 
+/**隐藏成就"闪瞎狗眼"的连击跟踪(连续切换主题且间隔<=1秒) */
+let themeSwitchStreak = 0
+let lastThemeSwitch = 0
+
 /**循环切换主题 */
 export function cycleTheme() {
   const idx = THEMES.findIndex((t) => t.id == settings.theme)
   const next = THEMES[(idx + 1) % THEMES.length]
   if (next) {
+    const now = Date.now()
+    themeSwitchStreak = now - lastThemeSwitch <= 1000 ? themeSwitchStreak + 1 : 1
+    lastThemeSwitch = now
+    if (themeSwitchStreak >= 100) unlockSecretFlag('theme-spam')
     settings.theme = next.id
     applyTheme()
     saveSettings()

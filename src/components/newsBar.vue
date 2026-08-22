@@ -2,10 +2,16 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { randomNews } from '@/news'
 import { settings } from '@/settings'
+import { unlockSecretFlag } from '@/access'
 
 const containerRef = ref<HTMLElement>()
 const textRef = ref<HTMLElement>()
 const newsText = ref('')
+/**点击新闻内的超链接(rickroll)触发隐藏成就 */
+function onNewsClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.tagName == 'A') unlockSecretFlag('rickroll')
+}
 /**新闻位置(px)，从右侧出现并不断左移 */
 const pos = ref(0)
 /**滚动速率(px/s) */
@@ -49,7 +55,7 @@ function onResize() {
 </script>
 <template>
   <div id="newsBar" v-if="settings.showNews">
-    <div ref="containerRef" class="newsContainer">
+    <div ref="containerRef" class="newsContainer" @click="onNewsClick">
       <span
         ref="textRef"
         class="newsText"

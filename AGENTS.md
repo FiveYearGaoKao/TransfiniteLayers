@@ -20,7 +20,7 @@ Strict unidirectional dependency: `tools → data → save/access → compute �
 - **`logic/` is where mutations happen** (purchases, resets, automations).
 - **`effects.ts` is the central buff pipeline**: every numeric modifier (cost, production, reset gain, etc.) goes through `registerEffect`/`calculate`. New systems MUST register effects here, never bake bonuses into core formulas.
 
-See `PROJECT.md` for the full directory map and layer/reset design.
+Full architecture & effect mechanism docs: `docs/面向开发者/` (架构.md, effect机制.md, 存档.md, 开发规范.md). Player-facing guide: `docs/面向玩家/玩法指南.md`.
 
 ## Gotchas
 

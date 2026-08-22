@@ -1,5 +1,8 @@
 import { gameName, gameVersion } from '@/data/constants'
 import { randInt } from '@/tools/utils'
+import { player } from '@/data/player'
+import { format } from './tools/format'
+import { getPoints } from './access'
 type newsItem = string | (() => string)
 const NEWS: newsItem[] = [
   //Hello World
@@ -61,10 +64,12 @@ const NEWS: newsItem[] = [
   '你难道没有觉得层级0和其它层级有什么不同吗?',
   '零多项式的次数应该是-Infinity,但在游戏中层级0和其它有限层级归为一类,这对吗?',
   '每个大层中,只有前5层和后5层是有效的.',
+  '挑战2比挑战1简单难道不是常识吗?',
   //数学
-  '这个数很大吗?几乎所有的正整数都比它大!',
+  () => `${format(getPoints([0]))}很大吗?几乎所有的正整数都比它大!`,
   '"任取一个正整数,几乎所有正整数都比它大"这句话是错误的,因为正整数集上不存在均匀的、满足可数可加性的概率分布.',
   '如果你每秒写3个数字,那么写完你的点数所用的时间比每秒写2个数字所用的时间要短.',
+  '1+1=?',
   //大数梗
   '定义没有,牛B吹爆.',
   '坦克给你打了',
@@ -81,11 +86,15 @@ const NEWS: newsItem[] = [
 ]
 
 let lastIndex = -1
+/**新闻总数(隐藏成就"新闻收藏家"用) */
+export const NEWS_COUNT = NEWS.length
 export function randomNews(): string {
   let index = randInt(0, NEWS.length)
   //避免连续出现同一条新闻
   if (index == lastIndex) index = (index + 1) % NEWS.length
   lastIndex = index
+  //记录已看过的新闻索引(隐藏成就)
+  if (!player.seenNews.includes(index)) player.seenNews.push(index)
   const news: newsItem = NEWS[index] || ''
   return typeof news == 'function' ? news() : news
 }

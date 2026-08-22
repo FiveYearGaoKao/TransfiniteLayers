@@ -11,10 +11,10 @@ import {
   getPoints,
   hasAchievement,
   higherLayer,
+  prevLayer,
 } from '@/access'
 import { compareLayer, isLayer0 } from '@/tools/ordinal'
 import { format } from '@/tools/format'
-import { resetGain } from './prestige'
 import {
   effectText,
   registerEffect,
@@ -127,9 +127,6 @@ export const UPGRADES: UpgradeDef[] = [
     cost(): Decimal {
       return new Decimal(getBase()).pow(2)
     },
-    effectText(): string {
-      return '解锁层级k-1维度自动购买'
-    },
     isUnlocked: (layer: LayerId) => !isLayer0(layer),
   },
   {
@@ -139,9 +136,6 @@ export const UPGRADES: UpgradeDef[] = [
     order: 0,
     cost(): Decimal {
       return new Decimal(getBase()).pow(2).mul(3)
-    },
-    effectText(): string {
-      return '解锁层级k-1加速器和加倍器自动购买'
     },
     isUnlocked: (layer: LayerId) => !isLayer0(layer),
     requires: [4],
@@ -154,9 +148,6 @@ export const UPGRADES: UpgradeDef[] = [
     cost(): Decimal {
       return new Decimal(getBase()).pow(3)
     },
-    effectText(): string {
-      return '解锁层级k自动重置'
-    },
     isUnlocked: (layer: LayerId) => !isLayer0(layer),
     requires: [5],
   },
@@ -168,9 +159,6 @@ export const UPGRADES: UpgradeDef[] = [
     cost(): Decimal {
       return new Decimal(getBase()).pow(2).mul(5)
     },
-    effectText(): string {
-      return '本层重置时保留能量和维度数量'
-    },
     isUnlocked: (layer: LayerId) => !isLayer0(layer),
   },
   {
@@ -181,25 +169,22 @@ export const UPGRADES: UpgradeDef[] = [
     cost(): Decimal {
       return new Decimal(getBase()).pow(3).mul(5)
     },
-    effectText(): string {
-      return '本层重置时保留下层升级'
-    },
     isUnlocked: (layer: LayerId) => !isLayer0(layer),
     requires: [7],
   },
   {
     id: 9,
     name: '软重置',
-    description: '每秒获得100%重置时获得的层级k-1点数',
+    description: '下层每秒获得100%重置获得过的最高点数',
     order: 0,
     cost(): Decimal {
-      return new Decimal(1.79e308)
-    },
-    effectText(layer: LayerId): string {
-      return `每秒获得${format(resetGain(layer))}点数`
+      return new Decimal(getBase()).pow(5)
     },
     isUnlocked: (layer: LayerId) => compareLayer(layer, [2]) >= 0,
     requires: [8],
+    effectText(layer) {
+      return `当前: +${format(getLayer(prevLayer(layer))?.bestPoints ?? new Decimal(0))}/s`
+    },
   },
 ]
 
@@ -258,9 +243,10 @@ for (const u of UPGRADES) {
   if (e) registerEffect(e)
 }
 
-/**某升级的效果文字(自定义优先,否则从效果自动生成) */
+/**某升级的效果文字(自定义优先,否则从效果自动生成;无数值效果时显示购买状态,避免与描述重复) */
 export function upgradeEffectText(def: UpgradeDef, layer: LayerId): string {
   if (def.effectText) return def.effectText(layer)
   const e = upgradeEffect(def)
-  return e ? effectText(e, { pos: layer, id: 0 }) : ''
+  if (e) return effectText(e, { pos: layer, id: 0 })
+  return hasUpgrade(layer, def.id) ? '当前:已解锁' : '当前:未解锁'
 }

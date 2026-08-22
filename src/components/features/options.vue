@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import Decimal, { type DecimalSource } from 'break_eternity.js'
-import { formatTime, format } from '@/tools/format'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import Decimal from 'break_eternity.js'
+import { format, formatTime, formatWhole } from '@/tools/format'
 import { player } from '@/data/player'
+import type { LayerId } from '@/data/types'
+import { registerSubtabCycler, unregisterSubtabCycler } from '@/navigation'
+import { getActiveLayers, getLayerName } from '@/access'
+import { NEWS_COUNT } from '@/news'
+import LayerSelect from './layerSelect.vue'
 import {
   importSaveString,
   exportSaveString,
@@ -13,7 +18,7 @@ import { temp } from '@/temp'
 import { type logType, addLog } from '@/log'
 import { doHardReset, doLoad, doSave } from '@/saveActions'
 import { unlockAllUi } from '@/logic/knowledge'
-import { gameVersion, DIMENSION_COUNT } from '@/data/constants'
+import { gameVersion, gameName, DIMENSION_COUNT } from '@/data/constants'
 import { CHANGELOG } from '@/data/changelog'
 import {
   effectBreakdown,
@@ -22,14 +27,35 @@ import {
   type EffectType,
   type RegisteredEffect,
 } from '@/compute/effects'
-import { getLayerName } from '@/access'
-import type { LayerId } from '@/data/types'
 import { hasKnowledge } from '@/compute/knowledge'
+import { RESOURCE_ITEMS } from '@/resourceRegistry'
 
-type optionsTab = 'settings' | 'about' | 'statistics'
+type optionsTab = 'settings' | 'hotkeys' | 'about' | 'changelog' | 'statistics'
 const subtab = ref<optionsTab>('settings')
+/**选项页子标签的循环切换(快捷键左右键用) */
+const OPTIONS_TABS: optionsTab[] = ['settings', 'hotkeys', 'about', 'changelog', 'statistics']
+onMounted(() =>
+  registerSubtabCycler('options', (dir) => {
+    const idx = OPTIONS_TABS.indexOf(subtab.value)
+    subtab.value = OPTIONS_TABS[(idx + dir + OPTIONS_TABS.length) % OPTIONS_TABS.length] ?? 'settings'
+  }),
+)
+onUnmounted(() => unregisterSubtabCycler('options'))
 /**是否为生产构建(发布版),调试区入口在发布版中隐藏 */
 const isProd = import.meta.env.PROD
+
+/**快捷键说明列表(快捷键页显示) */
+const HOTKEY_HELP: { keys: string; desc: string }[] = [
+  { keys: '1~9 / 0', desc: '切换主标签' },
+  { keys: '← / →', desc: '层级页切换所选层级,其余页切换子标签' },
+  { keys: 'Shift+1~4', desc: '购买当前层维度1~4' },
+  { keys: 'R', desc: '重置当前层(受二次确认设置控制)' },
+  { keys: 'S', desc: '弹出存档对话框' },
+  { keys: 'L', desc: '弹出读档对话框' },
+  { keys: 'A', desc: '开关当前层自动化' },
+  { keys: 'Shift+A', desc: '开关全部自动化' },
+  { keys: 'B', desc: '循环切换加速倍率' },
+]
 
 /**导出存档 */
 const exportText = ref('')
@@ -51,6 +77,38 @@ function doImport() {
     exportText.value = ''
   }
 }
+/**文件选择器(从文件导入用) */
+const fileInput = ref<HTMLInputElement>()
+/**当前时间戳(文件名用):YYYYMMDD-HHMMSS */
+function fileTimestamp(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+/**把存档导出为txt文件(文件名:游戏名-版本号-当前时间.txt) */
+function exportToFile() {
+  localSave()
+  const blob = new Blob([exportSaveString()], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${gameName}-${gameVersion}-${fileTimestamp()}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+/**从txt文件读取并导入存档 */
+function importFromFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = String(reader.result ?? '')
+    if (importSaveString(text)) exportText.value = ''
+    input.value = ''
+  }
+  reader.readAsText(file)
+}
 /**当前主题的名称 */
 const themeName = computed(() => THEMES.find((t) => t.id == settings.theme)?.name ?? settings.theme)
 /**boolean类型的顶层设置键 */
@@ -65,6 +123,11 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
 /**反转boolean设置项并保存 */
 function toggleSettings(key: booleanSettingKey) {
   settings[key] = !settings[key]
+  saveSettings()
+}
+/**切换资源栏某条目的显示并保存 */
+function toggleResource(id: string) {
+  settings.resourceBarItems[id] = !settings.resourceBarItems[id]
   saveSettings()
 }
 /**所有日志类型 */
@@ -109,18 +172,24 @@ interface StatTargetDef {
   sign: string
   label: (id: number) => string
   /**计算时的初始值(缺省1) */
-  base?: () => DecimalSource
+  base?: () => Decimal
 }
-const statDefs: StatTargetDef[] = [
+/**层级相关的数值点(受层级选择影响) */
+const layerStatDefs: StatTargetDef[] = [
   { target: 'dimensionMult', perDim: true, sign: 'x', label: (i: number) => `维度${i + 1}乘数` },
   { target: 'dimensionExponent', perDim: true, sign: '', label: (i: number) => `维度${i + 1}指数` },
   { target: 'pointsGain', perDim: false, sign: 'x', label: () => '点数获取' },
   { target: 'resetGain', perDim: false, sign: 'x', label: () => '重置收益' },
+]
+/**层级无关的全局数值点(独立于层级选择) */
+const globalStatDefs: StatTargetDef[] = [
+  { target: 'psdSpeed', perDim: false, sign: 'x', label: () => '全局速度' },
   {
-    target: 'psdSpeed',
+    target: 'quizCooldown',
     perDim: false,
-    sign: 'x',
-    label: () => '全局速度',
+    sign: '',
+    base: () => new Decimal(3600),
+    label: () => '答题冷却(秒)',
   },
 ]
 /**效果作用方式的符号 */
@@ -179,7 +248,7 @@ function statSlot(
 }
 /**根节点 */
 function statRoot(sd: StatTargetDef, id: number, pos: LayerId): StatNode {
-  const b = effectBreakdown(sd.target, { pos, id }, sd.base ? sd.base() : 1)
+  const b = effectBreakdown(sd.target, { pos, id }, sd.base ? sd.base() : new Decimal(1))
   const key = `${sd.target}:${id}`
   return {
     key,
@@ -190,15 +259,25 @@ function statRoot(sd: StatTargetDef, id: number, pos: LayerId): StatNode {
   }
 }
 /**当前层级的根节点列表 */
-const rootNodes = computed<StatNode[]>(() => {
-  const pos = player.layerSubtab
+function statRoots(defs: StatTargetDef[], pos: LayerId): StatNode[] {
   const nodes: StatNode[] = []
-  for (const sd of statDefs) {
+  for (const sd of defs) {
     const ids = sd.perDim ? Array.from({ length: DIMENSION_COUNT }, (_, i) => i) : [0]
     for (const id of ids) nodes.push(statRoot(sd, id, pos))
   }
   return nodes
-})
+}
+/**当前所选层级的加成树 */
+const layerNodes = computed<StatNode[]>(() => statRoots(layerStatDefs, statLayer.value))
+/**全局(层级无关)加成树 */
+const globalNodes = computed<StatNode[]>(() => statRoots(globalStatDefs, [0]))
+/**统计页查看的层级(缺省跟随当前层,可在统计页内切换) */
+const statLayer = ref<LayerId>([0])
+watch(
+  () => player.layerSubtab,
+  (v) => (statLayer.value = v),
+  { immediate: true },
+)
 /**已展开的节点key */
 const expanded = reactive(new Set<string>())
 /**切换某节点的展开状态 */
@@ -215,10 +294,11 @@ interface FlatRow {
   depth: number
   hasChildren: boolean
 }
-const flatTree = computed<FlatRow[]>(() => {
+/**把节点树按展开状态拍平成行列表 */
+function flatten(nodes: StatNode[]): FlatRow[] {
   const out: FlatRow[] = []
-  const walk = (nodes: StatNode[], depth: number) => {
-    for (const n of nodes) {
+  const walk = (list: StatNode[], depth: number) => {
+    for (const n of list) {
       out.push({
         key: n.key,
         label: n.label,
@@ -230,21 +310,37 @@ const flatTree = computed<FlatRow[]>(() => {
       if (expanded.has(n.key)) walk(n.children, depth + 1)
     }
   }
-  walk(rootNodes.value, 0)
+  walk(nodes, 0)
   return out
-})
+}
+const layerFlatTree = computed<FlatRow[]>(() => flatten(layerNodes.value))
+const globalFlatTree = computed<FlatRow[]>(() => flatten(globalNodes.value))
+
+//------资源明细页------
+/**统计页内部子标签 */
+const statsTab = ref<'buffs' | 'resources'>('buffs')
+/**全部活跃层级(资源明细页用) */
+const activeLayers = computed(() =>
+  getActiveLayers().map(({ key, pos, L }) => ({ key, name: getLayerName(pos), L })),
+)
 </script>
 <template>
   <div id="options">
     <div class="subtabRow">
-      <button
-        :class="{ subTab: true, selected: subtab == 'settings' }"
-        @click="subtab = 'settings'"
-      >
+      <button :class="{ subTab: true, selected: subtab == 'settings' }" @click="subtab = 'settings'">
         设置
+      </button>
+      <button :class="{ subTab: true, selected: subtab == 'hotkeys' }" @click="subtab = 'hotkeys'">
+        快捷键
       </button>
       <button :class="{ subTab: true, selected: subtab == 'about' }" @click="subtab = 'about'">
         关于游戏
+      </button>
+      <button
+        :class="{ subTab: true, selected: subtab == 'changelog' }"
+        @click="subtab = 'changelog'"
+      >
+        更新记录
       </button>
       <button
         :class="{ subTab: true, selected: subtab == 'statistics' }"
@@ -260,6 +356,12 @@ const flatTree = computed<FlatRow[]>(() => {
         <div class="row">
           <button :class="{ toggle: true, selected: true }" @click="cycleTheme()">
             主题：{{ themeName }}
+          </button>
+          <button
+            :class="['toggle', settings.hotkeys ? 'toggle-on' : 'toggle-off']"
+            @click="toggleSettings('hotkeys')"
+          >
+            快捷键：{{ settings.hotkeys ? '开' : '关' }}
           </button>
           <button
             :class="['toggle', settings.showToolBar ? 'toggle-on' : 'toggle-off']"
@@ -278,6 +380,19 @@ const flatTree = computed<FlatRow[]>(() => {
             @click="toggleSettings('showNews')"
           >
             滚动新闻：{{ settings.showNews ? '开' : '关' }}
+          </button>
+        </div>
+      </div>
+      <div class="section">
+        <span class="text bold">资源栏</span>
+        <div class="row">
+          <button
+            v-for="r in RESOURCE_ITEMS"
+            :key="r.id"
+            :class="['toggle', settings.resourceBarItems[r.id] ? 'toggle-on' : 'toggle-off']"
+            @click="toggleResource(r.id)"
+          >
+            {{ r.label }}:{{ settings.resourceBarItems[r.id] ? '开' : '关' }}
           </button>
         </div>
       </div>
@@ -347,6 +462,15 @@ const flatTree = computed<FlatRow[]>(() => {
           <button @click="doExport()">导出</button>
           <button @click="copyExport()">复制</button>
           <button @click="doImport()">导入</button>
+          <button @click="exportToFile()">导出到文件</button>
+          <button @click="fileInput?.click()">从文件导入</button>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".txt"
+            style="display: none"
+            @change="importFromFile($event)"
+          />
         </div>
         <div class="row">
           <button class="bad" @click="doHardReset()">硬重置</button>
@@ -377,41 +501,136 @@ const flatTree = computed<FlatRow[]>(() => {
       </div>
     </div>
 
-    <div v-if="subtab == 'about'" id="about">
-      <span class="text">版本: {{ gameVersion }}</span>
-      <div v-for="c in CHANGELOG" :key="c.version" class="section">
-        <span class="text bold">{{ c.version }}</span>
-        <p v-for="note in c.notes" :key="note" class="text">{{ note }}</p>
+    <div v-if="subtab == 'hotkeys'" id="hotkeys" class="section">
+      <span class="text">快捷键列表(可在设置中整体开关)</span>
+      <div class="section box hotkeyGrid">
+        <template v-for="h in HOTKEY_HELP" :key="h.keys">
+          <span class="text bold hotkey">{{ h.keys }}</span>
+          <span class="text">{{ h.desc }}</span>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="subtab == 'about'" id="about" class="section">
+      <span class="text bold">版本: <span class="version">{{ gameVersion }}</span></span>
+      <div class="section box left">
+        <span class="text bold">版本终局(v0.1.0)</span>
+        <span class="text">目标: 层级0点数达到 1.79e308,解锁"无限"。</span>
+        <span class="text">推荐进度: C1~C4 完成次数 10 / 10 / 1 / 1。</span>
+        <span class="text">成就: 除 a44"永无止境"(获得层级4点数)外的其他 31 个普通成就。</span>
+        <span class="text">其它内容见"更新记录"页。</span>
+      </div>
+      <div class="section box left">
+        <span class="text bold">如何游玩</span>
+        <span class="text">核心循环: 生产点数 → 重置晋升 → 解锁更高层级 → 能量反馈 → 更快生产。</span>
+        <span class="text">知识是跨重置货币: 成就/签到/答题获得,用于购买知识升级。</span>
+        <span class="text">挑战页在成就 a28(Googol)后解锁;自动化首次购买 u4 后永久开放。</span>
+        <span class="text">快捷键列表见"快捷键"页;详细玩法见文档 docs/面向玩家/玩法指南.md。</span>
+      </div>
+    </div>
+
+    <div v-if="subtab == 'changelog'" id="changelog" class="section">
+      <div v-for="c in CHANGELOG" :key="c.version" class="changelog">
+        <span class="text bold version">{{ c.version }}</span>
+        <ul class="changelogNotes">
+          <li v-for="note in c.notes" :key="note" class="text">{{ note }}</li>
+        </ul>
       </div>
     </div>
 
     <div v-if="subtab == 'statistics'" id="statistics">
-      <span class="text">存档创建时间: {{ new Date(player.firstPlay).toLocaleString() }}</span
-      ><br />
-      <span class="text">游戏时间(现实): {{ formatTime(player.realTime) }} </span><br />
-      <span class="text">游戏时间: {{ formatTime(player.totalTime) }}</span
-      ><br />
-      <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span
-      ><br />
-      <span class="text">加速时间: {{ formatTime(player.warpTime) }}</span
-      ><br />
-      <div class="section">
-        <span class="text bold">加成明细 · 当前层级 {{ getLayerName(player.layerSubtab) }}</span>
-        <div class="statTree">
-          <div
-            v-for="row in flatTree"
-            :key="row.key"
-            class="statRow"
-            :class="{ clickable: row.hasChildren }"
-            :style="{ paddingLeft: row.depth * 18 + 'px' }"
-            @click="row.hasChildren && toggle(row.key)"
+      <div class="subtabRow">
+        <button
+          :class="{ subTab: true, selected: statsTab == 'buffs' }"
+          @click="statsTab = 'buffs'"
+        >
+          加成明细
+        </button>
+        <button
+          :class="{ subTab: true, selected: statsTab == 'resources' }"
+          @click="statsTab = 'resources'"
+        >
+          资源明细
+        </button>
+      </div>
+
+      <div v-if="statsTab == 'buffs'" id="buffStats">
+        <div class="section">
+          <span class="text bold">层级加成 · {{ getLayerName(statLayer) }}</span>
+          <LayerSelect v-model="statLayer" />
+          <div class="statTree">
+            <div
+              v-for="row in layerFlatTree"
+              :key="row.key"
+              class="statRow"
+              :class="{ clickable: row.hasChildren }"
+              :style="{ paddingLeft: row.depth * 18 + 'px' }"
+              @click="row.hasChildren && toggle(row.key)"
+            >
+              <span class="text">
+                <span class="statArrow">{{
+                  row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·'
+                }}</span
+                >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <span class="text bold">全局加成(层级无关)</span>
+          <div class="statTree">
+            <div
+              v-for="row in globalFlatTree"
+              :key="row.key"
+              class="statRow"
+              :class="{ clickable: row.hasChildren }"
+              :style="{ paddingLeft: row.depth * 18 + 'px' }"
+              @click="row.hasChildren && toggle(row.key)"
+            >
+              <span class="text">
+                <span class="statArrow">{{
+                  row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·'
+                }}</span
+                >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else id="resourceStats" class="section">
+        <div class="section box left">
+          <span class="text bold">存档与时间</span>
+          <span class="text">存档创建时间: {{ new Date(player.firstPlay).toLocaleString() }}</span>
+          <span class="text">游戏时间(现实): {{ formatTime(player.realTime) }}</span>
+          <span class="text">游戏时间: {{ formatTime(player.totalTime) }}</span>
+          <span class="text">离线时间: {{ formatTime(player.offlineTime) }}</span>
+          <span class="text">加速时间: {{ formatTime(player.warpTime) }}</span>
+          <span class="text">层级0累计生产(永不清除): {{ format(player.totalPoints) }}</span>
+        </div>
+        <div class="section box left">
+          <span class="text bold">全局统计</span>
+          <span class="text">已看新闻: {{ player.seenNews.length }} / {{ NEWS_COUNT }}</span>
+          <span class="text">成功使用的指令: {{ player.commandCount }}</span>
+          <span class="text">答题次数: {{ player.quizCount }}</span>
+          <span class="text"
+            >签到: 连续{{ player.checkin.streak }}天 ·
+            上次:{{ player.checkin.lastDay || '从未' }}</span
           >
-            <span class="text">
-              <span class="statArrow">{{
-                row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·'
-              }}</span
-              >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
-            </span>
+        </div>
+        <div class="section box left">
+          <span class="text bold">层级资源</span>
+          <div v-for="l in activeLayers" :key="l.key" class="layerStats">
+            <span class="text bold layerName">{{ l.name }}</span>
+            <span class="text">点数: {{ format(l.L.points) }} · 能量: {{ format(l.L.energy) }}</span>
+            <span class="text"
+              >重置时间: {{ formatTime(l.L.resetTime) }} · 重置次数:
+              {{ formatWhole(l.L.resetCount) }}</span
+            >
+            <span class="text"
+              >最高重置点数: {{ format(l.L.bestPoints) }} · 累计点数:
+              {{ format(l.L.totalPoints) }}</span
+            >
           </div>
         </div>
       </div>
@@ -458,5 +677,52 @@ span.statArrow {
   display: inline-block;
   width: 14px;
   color: var(--dim);
+}
+span.hotkey {
+  min-width: 96px;
+  color: var(--accent);
+}
+div.hotkeyGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 16px;
+  justify-items: start;
+  align-items: center;
+}
+/*左对齐区块(资源明细/更新日志)*/
+div.left {
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+  max-width: 560px;
+  box-sizing: border-box;
+}
+div.layerStats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  border-top: 1px solid var(--faint);
+  padding: 4px 0;
+}
+span.layerName {
+  color: var(--good-border);
+}
+/*更新日志:紧凑+左对齐*/
+div.changelog {
+  width: 100%;
+  max-width: 560px;
+  text-align: left;
+  margin-top: 6px;
+}
+span.version {
+  color: var(--accent);
+}
+ul.changelogNotes {
+  margin: 2px 0 0 0;
+  padding-left: 20px;
+}
+ul.changelogNotes li {
+  line-height: 1.5;
 }
 </style>

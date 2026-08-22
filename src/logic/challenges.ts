@@ -5,16 +5,19 @@ import Decimal from 'break_eternity.js'
 import { player } from '@/data/player'
 import type { Layer, LayerId } from '@/data/types'
 import type { EffectDef, RegisteredEffect } from '@/compute/effects'
-import { registerEffect, registerEffectDisabler } from '@/compute/effects'
+import { effectById, effectText, registerEffect, registerEffectDisabler } from '@/compute/effects'
 import {
   challengeCompletions,
   getEnergy,
+  getHighestActiveLayer,
   getLayer,
   getPoints,
   isChallengeActive,
   prevLayer,
 } from '@/access'
-import { compareLayer, posArray } from '@/tools/ordinal'
+import { compareLayer } from '@/tools/ordinal'
+import { softCapValue } from '@/tools/softCap'
+import { format } from '@/tools/format'
 import { doReset } from './reset'
 import { addLog } from '@/log'
 
@@ -53,6 +56,8 @@ export interface ChallengeDef {
   rewardEffects?: EffectDef[]
   /**奖励文字说明 */
   rewardText?: string
+  /**当前奖励数值的文字(第二行;缺省从rewardEffects自动渲染,C5等动态奖励用公式覆盖) */
+  rewardValueText?: () => string
 }
 
 const challenges: ChallengeDef[] = []
@@ -79,9 +84,10 @@ export function getChallenge(id: string): ChallengeDef | undefined {
 }
 
 //------状态访问------
-/**某挑战是否已解锁(达到解锁层) */
+/**某挑战是否已解锁(最高活跃层级 >= 解锁层,而非解锁层点数>0,避免重置后挑战重新关闭) */
 export function isUnlocked(def: ChallengeDef): boolean {
-  return getPoints(def.unlockLayer).gte(1)
+  const highest = getHighestActiveLayer()
+  return highest ? compareLayer(highest, def.unlockLayer) >= 0 : false
 }
 
 /**某挑战是否正在激活 */
@@ -113,6 +119,18 @@ export function challengeGoal(def: ChallengeDef): Decimal {
 /**某挑战是否已完成目标 */
 export function challengeDone(def: ChallengeDef): boolean {
   return challengeResource(def).gte(challengeGoal(def))
+}
+
+/**当前奖励的数值文字(卡片第二行):自定义公式优先,否则渲染各奖励效果在当前完成次数下的数值 */
+export function challengeRewardValue(def: ChallengeDef): string {
+  if (def.rewardValueText) return def.rewardValueText()
+  const parts = (def.rewardEffects ?? [])
+    .map((_, i) => {
+      const e = effectById(`challenge-${def.id}-reward-${i}`)
+      return e ? effectText(e, { pos: [0], id: 0 }) : ''
+    })
+    .filter(Boolean)
+  return parts.join('、')
 }
 
 //------操作------
@@ -209,19 +227,10 @@ export function applyChallengeEffects(layer: Layer, pos: LayerId, dt: Decimal): 
 
 /**某层是否为当前最高已解锁层级(挑战C5豁免) */
 function isHighestLayer(pos: LayerId): boolean {
-  let highest: LayerId | undefined
-  for (const key of Object.keys(player.layers)) {
-    const p = posArray(key)
-    if (!getLayer(p)?.active) continue
-    if (!highest || compareLayer(p, highest) > 0) highest = p
-  }
-  return highest ? pos.toString() == highest.toString() : false
+  return pos.toString() == getHighestActiveLayer()?.toString()
 }
 
 //------挑战定义------
-/**C1目标公式:10000*100^k 层级1点数(待平衡,等比增长,单调且易求逆) */
-const C1_GOAL_BASE = 10000
-const C1_GOAL_RATIO = 100
 
 const CHALLENGES: ChallengeDef[] = [
   {
@@ -232,7 +241,8 @@ const CHALLENGES: ChallengeDef[] = [
     unlockLayer: [2],
     resetTarget: [2],
     goal(k: Decimal): Decimal {
-      return new Decimal(C1_GOAL_BASE).mul(new Decimal(C1_GOAL_RATIO).pow(k))
+      //完成约9次后目标开始超指数增长(软上限),阻止无限刷挑战
+      return softCapValue(new Decimal(1e5).mul(new Decimal(100).pow(k)), new Decimal(1e24), 1.5)
     },
     disableEffects: ['buyable-11'],
     rewardEffects: [
@@ -253,7 +263,8 @@ const CHALLENGES: ChallengeDef[] = [
     unlockLayer: [2],
     resetTarget: [2],
     goal(k: Decimal): Decimal {
-      return new Decimal(1e5).mul(new Decimal(100).pow(k))
+      //完成约9次后目标开始超指数增长(软上限)
+      return softCapValue(new Decimal(1e5).mul(new Decimal(1000).pow(k)), new Decimal(1e32), 1.5)
     },
     disableEffects: ['buyable-12'],
     effects: [
@@ -272,7 +283,7 @@ const CHALLENGES: ChallengeDef[] = [
         text: '加倍器价格增速降低 x{value}',
       },
     ],
-    rewardText: '每次完成降低加倍器的价格增长速度',
+    rewardText: '降低加倍器的价格增长速度',
   },
   {
     id: 'c3',
@@ -282,17 +293,18 @@ const CHALLENGES: ChallengeDef[] = [
     unlockLayer: [3],
     resetTarget: [3],
     goal(k: Decimal): Decimal {
-      return new Decimal(1e6).mul(new Decimal(1000).pow(k))
+      return new Decimal(1e6).mul(new Decimal(10000).pow(k))
     },
     rewardEffects: [
       {
         target: 'energy:base',
         type: 'add',
-        value: () => challengeCompletions('c3').mul(0.05),
+        //能量指数是后期数值爆炸主因,奖励改为对数递减:0.03*log2(k+1),首次+0.03
+        value: () => new Decimal(0.03).mul(challengeCompletions('c3').add(1).log(2)),
         text: '能量加成指数 +{value}',
       },
     ],
-    rewardText: '每次完成能量加成指数+0.05',
+    rewardText: '增加能量加成指数',
   },
   {
     id: 'c4',
@@ -302,17 +314,17 @@ const CHALLENGES: ChallengeDef[] = [
     unlockLayer: [3],
     resetTarget: [3],
     goal(k: Decimal): Decimal {
-      return new Decimal(1e6).mul(new Decimal(1000).pow(k))
+      return new Decimal(1000).mul(new Decimal(1000).pow(k))
     },
     rewardEffects: [
       {
         target: 'softCap:base',
-        type: 'mul',
-        value: () => new Decimal(10).pow(challengeCompletions('c4')),
-        text: '价格软上限阈值 x{value}',
+        type: 'exp',
+        value: () => new Decimal(0.15).mul(challengeCompletions('c4')).add(1),
+        text: '价格软上限阈值 ^{value}',
       },
     ],
-    rewardText: '每次完成延迟维度和加速器价格的软上限',
+    rewardText: '延迟维度和加速器价格的软上限',
   },
   {
     id: 'c5',
@@ -336,6 +348,11 @@ const CHALLENGES: ChallengeDef[] = [
       },
     ],
     rewardText: '维度随当前层级的重置时间变得更强',
+    //C5的数值随每层resetTime动态变化,故用公式展示,指数计算为sqrt(完成次数)
+    rewardValueText: () => {
+      const exp = challengeCompletions('c5').sqrt()
+      return `维度产量 x(1+t)^${format(exp)}`
+    },
   },
 ]
 

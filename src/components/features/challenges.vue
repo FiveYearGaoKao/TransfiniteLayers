@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { player } from '@/data/player'
 import { getLayerName } from '@/access'
 import { format, formatWhole } from '@/tools/format'
+import { registerSubtabCycler, unregisterSubtabCycler } from '@/navigation'
 import {
   challengeDone,
   challengeGoal,
   challengeGoalLayer,
   challengeResource,
+  challengeRewardValue,
   completions,
   completeChallenge,
   enterChallenge,
@@ -33,6 +35,16 @@ const subtab = ref<string>(
   subtabs.value.includes(player.challengeTab) ? player.challengeTab : 'normal',
 )
 watch(subtab, (v) => (player.challengeTab = v))
+/**挑战页子标签的循环切换(快捷键左右键用) */
+onMounted(() =>
+  registerSubtabCycler('challenges', (dir) => {
+    const list = subtabs.value
+    if (list.length == 0) return
+    const idx = list.indexOf(subtab.value)
+    subtab.value = list[(idx + dir + list.length) % list.length] ?? 'normal'
+  }),
+)
+onUnmounted(() => unregisterSubtabCycler('challenges'))
 
 /**当前子标签下的所有挑战 */
 const challengeList = computed(() => getChallenges(subtab.value))
@@ -73,6 +85,7 @@ function progressPercent(def: ChallengeDef): number {
         <span class="text bold name">{{ def.name }}</span>
         <span class="text">{{ def.description }}</span>
         <span class="text reward">奖励: {{ def.rewardText }}</span>
+        <span class="text rewardValue">当前: {{ challengeRewardValue(def) }}</span>
         <span class="text">已完成 {{ formatWhole(completions(def)) }} 次</span>
         <div class="info">
           <span v-if="!isUnlocked(def)" class="text lockInfo">
@@ -141,7 +154,7 @@ div.challenge {
   border: 2px solid var(--dim);
   padding: 6px;
   width: 240px;
-  height: 215px;
+  height: 235px;
   box-sizing: border-box;
   &.active {
     border-color: var(--good-border);
@@ -156,6 +169,10 @@ div.challenge .name {
 }
 div.challenge .reward {
   color: var(--good-border);
+}
+div.challenge .rewardValue {
+  color: var(--accent);
+  font-size: 13px;
 }
 div.challenge .lockInfo {
   color: var(--faint);

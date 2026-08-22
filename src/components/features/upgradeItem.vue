@@ -4,11 +4,14 @@ import type { LayerId } from '@/data/types'
 import type { UpgradeDef } from '@/compute/upgrades'
 import { canBuyUpgrade, hasUpgrade, upgradeCost, upgradeEffectText } from '@/compute/upgrades'
 import { buyUpgrade } from '@/logic/purchase'
+import { isAutoItem } from '@/logic/automations'
 
 const props = defineProps<{
   pos: LayerId
   def: UpgradeDef
 }>()
+/**该升级是否在本层自动购买列表中(用于边框高亮指示) */
+const autoOn = () => isAutoItem(props.pos, 'upgrades', props.def.id)
 </script>
 <template>
   <button
@@ -16,6 +19,7 @@ const props = defineProps<{
       'upgrade',
       hasUpgrade(props.pos, props.def.id) ? 'bought' : '',
       canBuyUpgrade(props.pos, props.def.id) ? 'affordable' : '',
+      autoOn() ? 'auto' : '',
     ]"
     :disabled="!canBuyUpgrade(props.pos, props.def.id)"
     @click="buyUpgrade(props.pos, props.def.id)"
@@ -23,7 +27,27 @@ const props = defineProps<{
     <span class="text bold">{{ props.def.name }}</span>
     <span class="text">{{ props.def.description }}</span>
     <span class="text">{{ upgradeEffectText(props.def, props.pos) }}</span>
-    <span class="text" v-if="hasUpgrade(props.pos, props.def.id)">已购买</span>
-    <span class="text" v-else>价格: {{ formatWhole(upgradeCost(props.pos, props.def.id)) }}</span>
+    <span class="text" v-if="!hasUpgrade(props.pos, props.def.id)">
+      价格: {{ formatWhole(upgradeCost(props.pos, props.def.id)) }}
+    </span>
+    <span v-if="autoOn()" class="autoTag">自动</span>
   </button>
 </template>
+<style scoped>
+button.upgrade {
+  position: relative;
+}
+button.upgrade.auto {
+  border-color: var(--accent);
+}
+span.autoTag {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 10px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+</style>

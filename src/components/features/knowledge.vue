@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import Decimal from 'break_eternity.js'
 import { format, formatTime } from '@/tools/format'
 import { player } from '@/data/player'
 import { settings, saveSettings } from '@/settings'
+import { registerSubtabCycler, unregisterSubtabCycler } from '@/navigation'
 import {
   canShow,
   getBoostPresets,
@@ -30,8 +31,19 @@ const SUBTABS = [
 const CATEGORY_NAMES: Record<string, string> = {
   time: '时间',
   bonus: '加成',
+  command: '指令',
+  auto: '自动化',
 }
 const subtab = ref('upgrades')
+/**知识页子标签的循环切换(快捷键左右键用) */
+onMounted(() =>
+  registerSubtabCycler('knowledge', (dir) => {
+    const ids = SUBTABS.map((t) => t.id)
+    const idx = ids.indexOf(subtab.value as (typeof SUBTABS)[number]['id'])
+    subtab.value = ids[(idx + dir + ids.length) % ids.length] ?? 'upgrades'
+  }),
+)
+onUnmounted(() => unregisterSubtabCycler('knowledge'))
 /**所有已使用的升级类别 */
 const cats = computed(() => getKnowledgeCategories())
 /**类别的显示名 */

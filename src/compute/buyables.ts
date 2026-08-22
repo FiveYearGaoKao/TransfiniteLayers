@@ -1,7 +1,7 @@
 //可购买的定义与计算
 import Decimal from 'break_eternity.js'
 import type { LayerId } from '@/data/types'
-import { buyableTotalBought, dimensionTotalBought, getBase, getLayer, hasAchievement, isChallengeActive } from '@/access'
+import { c4BoughtOffset, getBase, getLayer, hasAchievement } from '@/access'
 import { initializeDimensions } from '@/data/types'
 import { format } from '@/tools/format'
 import { softCap } from './softCap'
@@ -40,7 +40,7 @@ export const BUYABLES: BuyableDef[] = [
   {
     id: 11,
     name: '加速器',
-    description: '所有生成器速度+{basePercent}%，效果叠乘',
+    description: '所有维度生产+{basePercent}%，效果叠乘',
     order: 0,
     cost(_layer: LayerId, n: Decimal): Decimal {
       return new Decimal(getBase()).pow(n.div(2).add(1)).floor()
@@ -51,7 +51,7 @@ export const BUYABLES: BuyableDef[] = [
       type: 'mul',
       base: { target: 'b11:base', init: () => 1.1 },
       amount: { target: 'b11:amount', init: (ctx) => buyableAmount(ctx.pos, 11) },
-      text: '所有生成器速度 x{value}',
+      text: '维度生产 x{value}',
     },
   },
   {
@@ -79,7 +79,7 @@ export const BUYABLES: BuyableDef[] = [
     order: 0,
     isUnlocked: (_layer: LayerId) => hasAchievement('a22'),
     cost(_layer: LayerId, n: Decimal): Decimal {
-      return new Decimal(getBase()).pow(n.mul(n.add(1)).div(2).add(1).mul(getBase()).mul(4))
+      return new Decimal(getBase()).pow(new Decimal(2).pow(n).mul(4).mul(getBase()))
     },
     effect: {
       target: 'b11:base',
@@ -123,10 +123,7 @@ export function buyableCostAt(layer: LayerId, id: number, n: Decimal): Decimal {
   const def = getBuyable(id)
   if (!def) return Decimal.dInf
   //挑战C4:除加速器加成(b13)外,购买任何东西都使价格视为多购买1次(偏移量=本层购买总数)
-  let n2 = n
-  if (isChallengeActive('c4') && id != 13) {
-    n2 = n.add(dimensionTotalBought(layer).add(buyableTotalBought(layer)))
-  }
+  const n2 = id != 13 ? c4BoughtOffset(layer, n) : n
   const price = def.cost(layer, n2)
   //声明了softCap的可购买在获取价格时统一套对数软上限(见compute/softCap)
   if (def.softCap) return softCap(price, def.softCap.power)

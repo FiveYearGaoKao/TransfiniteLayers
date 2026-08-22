@@ -1,6 +1,29 @@
 //数字格式化函数
 import Decimal, { type DecimalSource } from 'break_eternity.js'
 
+/**
+ * 科学计数法:把double按precision位有效数字格式化为"m.eX"
+ * 用toExponential直接取尾数,避免手算除法/幂的精度损失,并正确处理尾数进位到10的情况
+ */
+function sci(mag: number, precision: number): string {
+  const [mantissa, expStr] = mag.toExponential(precision).split('e')
+  const exp = parseInt(expStr ?? '0').toString()
+  return `${mantissa}e${exp}`
+}
+
+/**
+ * 指数塔表示:用于layer>=1的数(10^10^...^mag)
+ * mag>=1e6直接走科学计数;否则手算10^(mag小数部分),并把尾数进位并入指数(避免"10.000e999999")
+ */
+function expTower(mag: number, layers: number, precision: number): string {
+  if (mag >= 1e6) return 'e'.repeat(layers) + sci(mag, precision)
+  const exp = Math.floor(mag)
+  const mantissa = Math.pow(10, mag - exp)
+  const [man, expStr] = mantissa.toExponential(precision).split('e')
+  const totalExp = exp + parseInt(expStr ?? '0')
+  return 'e'.repeat(layers - 1) + `${man}e${totalExp}`
+}
+
 //一般的格式化
 export function format(x: DecimalSource, precision: number = 3): string {
   const xd: Decimal = new Decimal(x)
@@ -9,19 +32,9 @@ export function format(x: DecimalSource, precision: number = 3): string {
   else if (!xd.isFinite()) return 'Infinity'
   else if (xd.layer >= 1e6) return 'F' + format(xd.slog(), precision)
   else if (xd.layer >= 5) return xd.mag.toFixed(precision) + 'F' + xd.layer
-  else if (xd.layer >= 1) {
-    if (xd.mag >= 1e6) {
-      return 'e'.repeat(xd.layer) + format(xd.mag, precision)
-    } else {
-      const exp = Math.floor(xd.mag)
-      const mag = Math.pow(10, xd.mag - exp)
-      return 'e'.repeat(xd.layer - 1) + mag.toFixed(precision) + 'e' + exp.toFixed(0)
-    }
-  } else if (xd.gte(1e6)) {
-    const exp = Math.floor(Math.log10(xd.mag))
-    const mag = xd.mag / Math.pow(10, exp)
-    return mag.toFixed(precision) + 'e' + exp.toFixed(0)
-  } else if (xd.gte(1000)) return xd.mag.toFixed(0)
+  else if (xd.layer >= 1) return expTower(xd.mag, xd.layer, precision)
+  else if (xd.gte(1e6)) return sci(xd.mag, precision)
+  else if (xd.gte(1000)) return xd.mag.toFixed(0)
   else if (xd.gte(0.001)) return xd.mag.toFixed(precision)
   return (0).toFixed(precision)
 }
@@ -29,7 +42,8 @@ export function format(x: DecimalSource, precision: number = 3): string {
 //Copied from "The moddin tree"
 export function formatWhole(x: DecimalSource) {
   const xd: Decimal = new Decimal(x)
-  if (xd.gte(1e9)) return format(xd, 2)
+  //1e6以上走科学计数,保留3位有效数字(避免1e6~1e9只显示1位)
+  if (xd.gte(1e6)) return format(xd, 2)
   if (xd.lte(0.99) && !xd.eq(0)) return format(xd, 2)
   return format(xd, 0)
 }

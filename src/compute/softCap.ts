@@ -8,6 +8,8 @@ import { slotValue } from './effects'
 const SOFT_CAP_BASE = 1e100
 /**软上限后的对数幂次 */
 const SOFT_CAP_EXP = 2
+/**软上限的高度(见tools/softCap:1=现状,>1把软上限推迟到更高层指数塔) */
+const SOFT_CAP_HEIGHT = 1
 
 /**当前软上限阈值(被C4奖励等效果修饰) */
 export function softCapThreshold(): Decimal {
@@ -15,6 +17,6 @@ export function softCapThreshold(): Decimal {
 }
 
 /**对价格应用软上限:低于阈值不处理,高于阈值价格呈超指数增长 */
-export function softCap(value: Decimal, power = SOFT_CAP_EXP): Decimal {
-  return softCapValue(value, softCapThreshold(), power)
+export function softCap(value: Decimal, power = SOFT_CAP_EXP, height = SOFT_CAP_HEIGHT): Decimal {
+  return softCapValue(value, softCapThreshold(), power, height)
 }

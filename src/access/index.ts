@@ -3,7 +3,14 @@ import Decimal, { type DecimalSource } from 'break_eternity.js'
 import { player } from '@/data/player'
 import { type Layer, type LayerId, type _Layer } from '@/data/types'
 import { formatWhole } from '@/tools/format'
-import { getLayerIndex, getLayerOrder, isLayer0, posArray, shiftLayer } from '@/tools/ordinal'
+import {
+  compareLayer,
+  getLayerIndex,
+  getLayerOrder,
+  isLayer0,
+  posArray,
+  shiftLayer,
+} from '@/tools/ordinal'
 import { temp } from '@/temp'
 
 /**获取某一层的引用 */
@@ -42,6 +49,26 @@ export function getLayerName(pos: LayerId, hide: number = 0): string {
   return '层级' + layerNames.join(',')
 }
 
+/**
+ * 层级选择矩阵:以锚点层级为准,遍历layerDepth×base用shiftLayer生成按钮矩阵(含临时层)
+ * 供层级选择组件(layerSelect)与快捷键层级循环(navigation)共用,保证两者永远一致
+ */
+export function getLayerRows(
+  modelValue: LayerId,
+): { pos: LayerId; name: string; selected: boolean }[][] {
+  const rows: { pos: LayerId; name: string; selected: boolean }[][] = []
+  for (let i = player.layerDepth - 1; i >= 0; --i) {
+    const row: { pos: LayerId; name: string; selected: boolean }[] = []
+    for (let j = 0; j <= player.base; ++j) {
+      const k = j < player.base ? j : -1
+      const pos = shiftLayer(modelValue, i, k)
+      row.push({ pos, name: getLayerName(pos, i), selected: k == getLayerIndex(modelValue, i) })
+    }
+    rows.push(row)
+  }
+  return rows
+}
+
 /**获取某个层级的点数，层级0的点数即玩家的总点数 */
 export function getPoints(pos: LayerId): Decimal {
   return getLayer(pos)?.points || new Decimal(0)
@@ -63,7 +90,7 @@ export function dimensionAmount(layer: _Layer, id: number, type: number = 0): De
  * 增加某维度的数量
  * @param type 0表示总数，1表示购买数量
  */
-export function addAmount(layer: _Layer, id: number, amount: DecimalSource, type: number = 0) {
+export function addAmount(layer: _Layer, id: number, amount: Decimal, type: number = 0) {
   if (layer instanceof Array) layer = getLayer(layer)
   const dim = layer?.dimensions[id]
   if (dim) dim[type] = dimensionAmount(layer, id, type).add(amount)
@@ -116,6 +143,24 @@ export function prevLayer(pos: LayerId): LayerId {
     return pos.slice()
   }
 }
+/**所有活跃层级的引用(供资源展示/挑战豁免等共用) */
+export function getActiveLayers(): { key: string; pos: LayerId; L: Layer }[] {
+  const list: { key: string; pos: LayerId; L: Layer }[] = []
+  for (const key of Object.keys(player.layers)) {
+    const pos = posArray(key)
+    const L = getLayer(pos)
+    if (L?.active) list.push({ key, pos, L })
+  }
+  return list
+}
+/**当前最高的活跃层级(全局最大,无活跃层返回undefined) */
+export function getHighestActiveLayer(): LayerId | undefined {
+  let highest: LayerId | undefined
+  for (const { pos } of getActiveLayers()) {
+    if (!highest || compareLayer(pos, highest) > 0) highest = pos
+  }
+  return highest
+}
 /**获取层级在层级链中的深度(从层级0沿prevLayer数) */
 export function getLayerDepth(pos: LayerId): number {
   let depth = 0
@@ -148,11 +193,40 @@ export function hasAnyUpgrade(id: number): boolean {
 export function hasAchievement(id: string): boolean {
   return player.achievements.includes(id)
 }
+
+//------隐藏成就------
+/**普通成就id集合(由logic/achievements注册,供计算普通成就数量) */
+const normalAchievements = new Set<string>()
+/**注册一个普通成就id(普通成就定义时调用) */
+export function registerNormalAchievement(id: string) {
+  normalAchievements.add(id)
+}
+/**已解锁的普通(非隐藏)成就数量 */
+export function getUnlockedNormalAchievementCount(): number {
+  return player.achievements.filter((id) => normalAchievements.has(id)).length
+}
+/**记录一个隐藏成就的解锁标记(对应操作触发时调用,如保存/清日志) */
+export function unlockSecretFlag(id: string) {
+  if (!player.secretFlags.includes(id)) player.secretFlags.push(id)
+}
 /**某挑战是否正在激活(可叠加) */
 export function isChallengeActive(id: string): boolean {
   return player.activeChallenges.includes(id)
 }
+/**挑战C4的价格偏移:购买任何东西都使价格视为多购买1次(偏移量=本层购买总数) */
+export function c4BoughtOffset(layer: _Layer, n: DecimalSource): Decimal {
+  if (!isChallengeActive('c4')) return new Decimal(n)
+  return new Decimal(n).add(dimensionTotalBought(layer).add(buyableTotalBought(layer)))
+}
 /**某挑战的完成次数 */
 export function challengeCompletions(id: string): Decimal {
   return player.challenges[id] || new Decimal(0)
+}
+/**挑战的总完成次数*/
+export function totalChallengeCompletions(): Decimal {
+  let total = new Decimal(0)
+  for (const id in player.challenges) {
+    total = total.add(challengeCompletions(id))
+  }
+  return total
 }

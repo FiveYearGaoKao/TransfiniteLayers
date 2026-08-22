@@ -25,6 +25,7 @@
   --good-border: #3fcf3f;
   --good-bg: #005f00;
   --good-hover: #007f00;
+  --accent: #ffd700;
   --bad-border: #cf3f3f;
   --bad-bg: #5f0000;
   --bad-hover: #7f0000;
@@ -52,6 +53,7 @@ body.light {
   --good-border: #2f9f2f;
   --good-bg: #c8e8c8;
   --good-hover: #b0d8b0;
+  --accent: #b58900;
   --bad-border: #cf3f3f;
   --bad-bg: #f0c8c8;
   --bad-hover: #e0b0b0;
@@ -199,7 +201,7 @@ button.subTab {
 }
 button.prestige {
   width: 160px;
-  height: 80px;
+  height: 32px;
 }
 button.buyable {
   width: 88px;
@@ -225,7 +227,7 @@ button.toggle {
   min-width: 60px;
 }
 button.toggle.compact {
-  width: 72px;
+  width: 60px;
   min-width: 0;
   padding: 0 4px;
   height: 26px;

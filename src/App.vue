@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
 import { player } from '@/data/player'
 import { getMetaLayers } from '@/meta/registry'
 import { settings } from '@/settings'
+import { initHotkeys, disposeHotkeys } from '@/hotkeys'
 import layers from './components/features/layers.vue'
 import options from './components/features/options.vue'
 import achievements from './components/features/achievements.vue'
@@ -14,6 +16,9 @@ import navigatorBar from './components/navigatorBar.vue'
 import logBar from './components/logBar.vue'
 import toolBar from './components/toolBar.vue'
 import DialogHost from './components/dialog.vue'
+
+onMounted(initHotkeys)
+onUnmounted(disposeHotkeys)
 </script>
 
 <template>

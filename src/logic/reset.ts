@@ -73,10 +73,10 @@ export function doReset(
     }
     //重置前面的层级
     const prev = prevLayer(layer)
-    doReset(prev, true, gainResource, forceClearUpgrades)
     resetData(prev, {
       keepUpgrades: !forceClearUpgrades && hasUpgrade(layer, 8),
     })
+    doReset(prev, true, false, forceClearUpgrades)
     //如果是临时层级，则添加一个新层级
     if (layer.indexOf(-1) >= 0) {
       const n = getLayerOrder(layer)
@@ -98,4 +98,17 @@ export function doReset(
       temp.tempLayers[layer.toString()] = initializeLayer(highestLevel.add(1))
     }
   }
+}
+
+/**
+ * 不获得资源的强制重置(挑战4"后悔"按钮)
+ * 直接resetData本层(点数清零、清除维度/可购买,使C4价格偏移恢复),再级联重置下层;保留本层升级
+ * 临时层(含-1)禁止调用:在临时层重置会无条件解锁新层级
+ */
+export function resetRunWithoutGain(pos: LayerId) {
+  if (pos.includes(-1)) return
+  const L = getLayer(pos)
+  if (!L || !L.active) return
+  resetData(pos, { keepUpgrades: true })
+  doReset(pos, true, false, false)
 }

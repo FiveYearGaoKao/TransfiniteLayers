@@ -50,6 +50,8 @@ div.logItem {
   border: 1px solid var(--faint);
   width: 100%;
   font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
   transition: all 200ms;
 }
 div.logItem:hover {

@@ -1,39 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { player, type mainTabs } from '@/data/player'
-import { hasAchievement, hasAnyUpgrade } from '@/access'
-import { getMetaLayers } from '@/meta/registry'
-
-interface tabInfo {
-  id: mainTabs
-  name: string
-  /**是否为元重置层标签 */
-  meta: boolean
-}
-/**导航栏的所有标签(按解锁条件过滤) */
-const tabs = computed(() => {
-  const list: tabInfo[] = [
-    { id: 'layers', name: '层级', meta: false },
-    { id: 'options', name: '选项', meta: false },
-    { id: 'achievements', name: '成就', meta: false },
-    { id: 'knowledge', name: '知识', meta: false },
-  ]
-  if (hasAchievement('a28')) {
-    list.push({ id: 'challenges', name: '挑战', meta: false })
-  }
-  if (hasAnyUpgrade(4)) {
-    list.push({ id: 'automation', name: '自动化', meta: false })
-  }
-  for (const m of getMetaLayers()) {
-    if (m.isUnlocked()) list.push({ id: m.id as mainTabs, name: m.name ?? m.id, meta: true })
-  }
-  return list
-})
+import { player } from '@/data/player'
+import { mainTabsList } from '@/navigation'
 </script>
 <template>
   <div id="navigatorBar">
     <button
-      v-for="tab in tabs"
+      v-for="tab in mainTabsList"
       :key="tab.id"
       :class="{ mainTab: true, meta: tab.meta, selected: player.mainTab == tab.id }"
       @click="player.mainTab = tab.id"

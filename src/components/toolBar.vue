@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import Decimal from 'break_eternity.js'
-import { computed } from 'vue'
+import { ref } from 'vue'
 import { pause, tick } from '@/core'
 import { player } from '@/data/player'
-import { getBoostPresets, hasKnowledge } from '@/compute/knowledge'
+import { hasKnowledge } from '@/compute/knowledge'
 import { doLoad, doSave } from '@/saveActions'
+import { cycleBoost } from '@/uiActions'
+import { executeCommand } from '@/commandRunner'
 
-/**当前已解锁的加速倍率档位 */
-const boostPresets = computed(() => getBoostPresets())
-/**循环切换加速倍速(在已解锁档位间轮转) */
-function cycleBoost() {
-  const presets = boostPresets.value
-  const cur = player.boostSpeed.toNumber()
-  player.boostSpeed = new Decimal(presets[(presets.indexOf(cur) + 1) % presets.length] ?? 1)
+/**指令输入框内容 */
+const cmdText = ref('')
+/**执行指令并清空输入框 */
+function runCommand() {
+  if (cmdText.value.trim()) executeCommand(cmdText.value)
+  cmdText.value = ''
 }
 </script>
 <template>
@@ -65,6 +65,14 @@ function cycleBoost() {
         <path d="M1 4 H8 L10 6 H15 V13 H1 Z" />
       </svg>
     </button>
+    <input
+      v-if="hasKnowledge('command-checkin')"
+      v-model="cmdText"
+      class="commandInput"
+      placeholder="/指令"
+      title="输入指令(需购买知识升级:指令系统)"
+      @keydown.enter="runCommand()"
+    />
   </div>
 </template>
 <style scoped>
@@ -96,5 +104,13 @@ button.tool.boost {
 }
 span.boostMult {
   font-size: 14px;
+}
+input.commandInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 13px;
 }
 </style>

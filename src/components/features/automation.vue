@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import Decimal from 'break_eternity.js'
-import { player } from '@/data/player'
-import { getLayer, getLayerName } from '@/access'
-import { getLayerOrder, posArray } from '@/tools/ordinal'
+import { getLayer } from '@/access'
+import { getLayerOrder, isLayer0 } from '@/tools/ordinal'
 import { getBuyables } from '@/compute/buyables'
-import type { AutoBuyConfig, AutoConfig, AutoResetConfig } from '@/data/types'
+import { getUpgrades } from '@/compute/upgrades'
+import { hasKnowledge } from '@/compute/knowledge'
+import type { AutoBuyConfig, AutoConfig, AutoResetConfig, LayerId } from '@/data/types'
 import {
   AUTOMATIONS,
   getLayerAutomation,
@@ -16,12 +17,10 @@ import {
   toggleAutoItem,
   isAutoItem,
 } from '@/logic/automations'
+import LayerSelect from './layerSelect.vue'
 
-/**所有活跃层级 */
-const layerKeys = computed(() => Object.keys(player.layers))
 /**当前选择的层级 */
-const selectedKey = ref<string>('0')
-const selectedPos = computed(() => posArray(selectedKey.value))
+const selectedPos = ref<LayerId>([0])
 /**当前层级的自动化配置 */
 const auto = computed(() => getLayerAutomation(selectedPos.value))
 /**全部层级自动化是否全开 */
@@ -32,6 +31,8 @@ const layerAutoOn = computed(() => isLayerAutoActive(selectedPos.value))
 const dimCount = computed(() => getLayer(selectedPos.value)?.dimensions.length ?? 0)
 /**当前层可购买列表 */
 const buyableList = computed(() => getBuyables(getLayerOrder(selectedPos.value)))
+/**当前层升级列表(升级自动化用) */
+const upgradeList = computed(() => getUpgrades(getLayerOrder(selectedPos.value)))
 /**类型化的配置访问 */
 function cfgOf(id: string): AutoConfig {
   return auto.value.cfgs[id] as AutoConfig
@@ -47,6 +48,11 @@ function parseDecimal(v: string): Decimal {
   const d = new Decimal(v)
   return Decimal.isNaN(d) ? new Decimal(0) : d
 }
+/**是否显示某自动化卡片:只要配置存在即可修改;层级0不能重置,不显示自动重置 */
+function showAutoCard(def: { id: string }): boolean {
+  if (def.id == 'reset' && isLayer0(selectedPos.value)) return false
+  return true
+}
 </script>
 <template>
   <div id="automation">
@@ -57,11 +63,7 @@ function parseDecimal(v: string): Decimal {
       <button :class="['toggle', allAutoOn ? 'toggle-on' : 'toggle-off']" @click="toggleAllAuto()">
         全部自动化:{{ allAutoOn ? '开' : '关' }}
       </button>
-      <select v-model="selectedKey">
-        <option v-for="k in layerKeys" :key="k" :value="k">
-          {{ getLayerName(posArray(k)) }}
-        </option>
-      </select>
+      <LayerSelect v-model="selectedPos" />
       <button
         :class="['toggle', layerAutoOn ? 'toggle-on' : 'toggle-off']"
         @click="toggleLayerAuto(selectedPos)"
@@ -71,8 +73,11 @@ function parseDecimal(v: string): Decimal {
     </div>
 
     <template v-for="def in AUTOMATIONS" :key="def.id">
-      <div v-if="def.isUnlocked(selectedPos)" class="card section box">
-        <span class="text bold">{{ def.name }}</span>
+      <div v-if="showAutoCard(def)" class="card section box">
+        <div class="row">
+          <span class="text bold">{{ def.name }}</span>
+          <span v-if="!def.isUnlocked(selectedPos)" class="text badge">未解锁</span>
+        </div>
         <div class="row">
           <button
             :class="['toggle', def.isActive(cfgOf(def.id)) ? 'toggle-on' : 'toggle-off']"
@@ -92,6 +97,8 @@ function parseDecimal(v: string): Decimal {
             <span class="text">消耗%</span>
             <input type="number" v-model.number="buyCfg(def.id).percent" />
             <button
+              v-if="hasKnowledge('auto-batch')"
+              title="需知识升级:自动批量"
               @click="
                 buyCfg(def.id).buyAmount = buyCfg(def.id).buyAmount == 'one' ? 'max' : 'one'
               "
@@ -120,6 +127,29 @@ function parseDecimal(v: string): Decimal {
               @click="toggleAutoItem(selectedPos, 'buyables', b.id)"
             >
               {{ b.name }}:{{ isAutoItem(selectedPos, 'buyables', b.id) ? '开' : '关' }}
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="def.id == 'upgrades'">
+          <div class="row">
+            <button @click="buyCfg(def.id).order = buyCfg(def.id).order == 'asc' ? 'desc' : 'asc'">
+              {{ buyCfg(def.id).order == 'asc' ? '从低到高' : '从高到低' }}
+            </button>
+            <span class="text">消耗%</span>
+            <input type="number" v-model.number="buyCfg(def.id).percent" />
+          </div>
+          <div class="row autoToggles">
+            <button
+              v-for="u in upgradeList"
+              :key="u.id"
+              :class="[
+                'toggle',
+                isAutoItem(selectedPos, 'upgrades', u.id) ? 'toggle-on' : 'toggle-off',
+              ]"
+              @click="toggleAutoItem(selectedPos, 'upgrades', u.id)"
+            >
+              {{ u.name }}:{{ isAutoItem(selectedPos, 'upgrades', u.id) ? '开' : '关' }}
             </button>
           </div>
         </template>
@@ -187,6 +217,16 @@ div#autoHeader {
 }
 div.card {
   gap: 6px;
+}
+/*升级开关较多,限制宽度强制换行*/
+div.autoToggles {
+  max-width: 540px;
+}
+span.badge {
+  color: var(--faint);
+  border: 1px solid var(--faint);
+  padding: 0 4px;
+  font-size: 11px;
 }
 input {
   width: 100px;

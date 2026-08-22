@@ -14,10 +14,11 @@ import {
   type LayerId,
 } from '@/data/types'
 import { getLayerOrder, posArray } from '@/tools/ordinal'
-import { hasUpgrade } from '@/compute/upgrades'
+import { hasKnowledge, knowledgeAmount } from '@/compute/knowledge'
+import { canBuyUpgrade, getUpgrades, hasUpgrade, upgradeCost } from '@/compute/upgrades'
 import { canReset, resetGain } from '@/compute/prestige'
 import { getBuyables } from '@/compute/buyables'
-import { buyBuyable, buyDimension } from './purchase'
+import { buyBuyable, buyDimension, buyUpgrade } from './purchase'
 import { doReset } from './reset'
 
 //------自动化注册表------
@@ -58,6 +59,19 @@ export const AUTOMATIONS: AutomationDef[] = [
       ;(cfg as AutoResetConfig).enabled = on
     },
     onTick: (pos, cfg) => autoReset(pos, cfg as AutoResetConfig),
+  },
+  {
+    id: 'upgrades',
+    name: '升级自动化',
+    defaultCfg: () => defaultAutoBuy(),
+    isUnlocked: (pos) => autoUpgradeUnlocked(pos),
+    isActive: (cfg) => Object.values((cfg as AutoBuyConfig).perItem).some((v) => v),
+    setAll: (pos, cfg, on) => {
+      for (const u of getUpgrades(getLayerOrder(pos))) {
+        ;(cfg as AutoBuyConfig).perItem[u.id] = on
+      }
+    },
+    onTick: (pos, cfg) => autoBuyUpgrades(pos, cfg as AutoBuyConfig),
   },
 ]
 
@@ -104,16 +118,37 @@ export function buyablesAutoUnlocked(pos: LayerId): boolean {
 export function resetAutoUnlocked(pos: LayerId): boolean {
   return hasUpgrade(pos, 6)
 }
+/**某层升级自动化是否解锁(知识升级auto-upgrade,层级0也有u2/u3故不做isLayer0限制) */
+export function autoUpgradeUnlocked(pos: LayerId): boolean {
+  return hasKnowledge('auto-upgrade') && getUpgrades(getLayerOrder(pos)).length > 0
+}
 
 //------开关操作------
-/**某层某维度/可购买项是否自动购买 */
-export function isAutoItem(pos: LayerId, type: 'dims' | 'buyables', id: number): boolean {
+/**某层某维度/可购买/升级项是否自动 */
+export function isAutoItem(
+  pos: LayerId,
+  type: 'dims' | 'buyables' | 'upgrades',
+  id: number,
+): boolean {
   return (getLayerAutomation(pos).cfgs[type] as AutoBuyConfig | undefined)?.perItem[id] === true
 }
-/**切换某层某维度/可购买项的自动开关 */
-export function toggleAutoItem(pos: LayerId, type: 'dims' | 'buyables', id: number) {
+/**切换某层某维度/可购买/升级项的自动开关 */
+export function toggleAutoItem(
+  pos: LayerId,
+  type: 'dims' | 'buyables' | 'upgrades',
+  id: number,
+) {
   const cfg = getLayerAutomation(pos).cfgs[type] as AutoBuyConfig
   cfg.perItem[id] = !cfg.perItem[id]
+}
+/**某层自动重置开关是否开启 */
+export function resetAutoEnabled(pos: LayerId): boolean {
+  return (getLayerAutomation(pos).cfgs.reset as AutoResetConfig | undefined)?.enabled ?? false
+}
+/**切换某层自动重置开关 */
+export function toggleResetAuto(pos: LayerId) {
+  const cfg = getLayerAutomation(pos).cfgs.reset as AutoResetConfig
+  cfg.enabled = !cfg.enabled
 }
 /**某层是否有自动化处于激活状态 */
 export function isLayerAutoActive(pos: LayerId): boolean {
@@ -179,12 +214,21 @@ function updateLayerAutomation(pos: LayerId) {
     if (cfg) def.onTick(pos, cfg)
   }
 }
+/**实际购买数量模式:"买最大"需解锁知识升级auto-batch */
+function effectiveBuyAmount(cfg: AutoBuyConfig): 'one' | 'max' {
+  return cfg.buyAmount == 'max' && hasKnowledge('auto-batch') ? 'max' : 'one'
+}
+/**自动批量:每帧至多购买2^等级个 */
+function batchAmount(): Decimal {
+  return new Decimal(2).pow(knowledgeAmount('auto-batch'))
+}
+
 /**自动购买维度 */
 function autoBuyDims(pos: LayerId, cfg: AutoBuyConfig) {
   const L = getLayer(pos)
   if (!L) return
-  let remaining = L.points.mul(cfg.percent).div(100)
-  if (remaining.lt(1)) return
+  if (L.points.lt(1)) return
+  let remaining = L.points.mul(cfg.percent).div(100).max(1)
   const ids: number[] = []
   for (let i = 0; i < L.dimensions.length; i++) {
     if (cfg.perItem[i] === true) ids.push(i)
@@ -192,7 +236,7 @@ function autoBuyDims(pos: LayerId, cfg: AutoBuyConfig) {
   if (cfg.order == 'desc') ids.reverse()
   for (const id of ids) {
     if (remaining.lt(1)) break
-    const amount = cfg.buyAmount == 'max' ? Decimal.dInf : new Decimal(1)
+    const amount = effectiveBuyAmount(cfg) == 'max' ? batchAmount() : new Decimal(1)
     const spent = buyDimension(pos, id, amount, remaining)
     //买不起时继续尝试下一个(价格可能不同)
     remaining = remaining.sub(spent)
@@ -202,18 +246,37 @@ function autoBuyDims(pos: LayerId, cfg: AutoBuyConfig) {
 function autoBuyBuyables(pos: LayerId, cfg: AutoBuyConfig) {
   const L = getLayer(pos)
   if (!L) return
-  let remaining = L.points.mul(cfg.percent).div(100)
-  if (remaining.lt(1)) return
+  if (L.points.lt(1)) return
+  let remaining = L.points.mul(cfg.percent).div(100).max(1)
   const ids = getBuyables(getLayerOrder(pos))
     .filter((b) => cfg.perItem[b.id] === true)
     .map((b) => b.id)
   if (cfg.order == 'desc') ids.reverse()
   for (const id of ids) {
     if (remaining.lt(1)) break
-    const amount = cfg.buyAmount == 'max' ? Decimal.dInf : new Decimal(1)
+    const amount = effectiveBuyAmount(cfg) == 'max' ? batchAmount() : new Decimal(1)
     const spent = buyBuyable(pos, id, amount, remaining)
     //买不起时继续尝试下一个(价格可能不同)
     remaining = remaining.sub(spent)
+  }
+}
+/**自动购买升级(一次性,已购自动跳过) */
+function autoBuyUpgrades(pos: LayerId, cfg: AutoBuyConfig) {
+  const L = getLayer(pos)
+  if (!L) return
+  if (L.points.lt(1)) return
+  let remaining = L.points.mul(cfg.percent).div(100).max(1)
+  const ids = getUpgrades(getLayerOrder(pos))
+    .filter((u) => cfg.perItem[u.id] === true && !hasUpgrade(pos, u.id))
+    .map((u) => u.id)
+  if (cfg.order == 'desc') ids.reverse()
+  for (const id of ids) {
+    if (remaining.lt(1)) break
+    if (!canBuyUpgrade(pos, id)) continue
+    const cost = upgradeCost(pos, id)
+    if (cost.gt(remaining)) continue
+    buyUpgrade(pos, id)
+    remaining = remaining.sub(cost)
   }
 }
 /**自动重置 */

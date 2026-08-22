@@ -21,12 +21,22 @@ export interface SlotDialogOptions {
   mode: 'save' | 'load'
 }
 
+/**答题框选项 */
+export interface QuizDialogOptions {
+  /**标题 */
+  title: string
+  /**题面 */
+  question: string
+  /**多选题选项(缺省为输入式答题) */
+  options?: string[]
+}
+
 /**队列中的对话框条目 */
 interface DialogEntry {
-  kind: 'confirm' | 'slots'
-  options: ConfirmDialogOptions | SlotDialogOptions
-  /**玩家关闭对话框时回传的值:确认框为boolean,槽位框为槽位序号或null */
-  resolve: (value: boolean | number | null) => void
+  kind: 'confirm' | 'slots' | 'quiz'
+  options: ConfirmDialogOptions | SlotDialogOptions | QuizDialogOptions
+  /**玩家关闭对话框时回传的值:确认框为boolean,槽位框为槽位序号,答题框为输入的答案 */
+  resolve: (value: boolean | number | string | null) => void
 }
 
 const queue = reactive([] as DialogEntry[])
@@ -52,8 +62,19 @@ export function openSlots(options: SlotDialogOptions): Promise<number | null> {
   })
 }
 
+/**弹出答题框,resolve值为玩家输入/选中的答案(输入为string,多选为选项下标)或取消(null) */
+export function openQuiz(options: QuizDialogOptions): Promise<string | number | null> {
+  return new Promise<string | number | null>((resolve) => {
+    queue.push({
+      kind: 'quiz',
+      options,
+      resolve: (v) => resolve(typeof v == 'string' || typeof v == 'number' ? v : null),
+    })
+  })
+}
+
 /**关闭当前对话框并回传结果 */
-export function closeDialog(value: boolean | number | null) {
+export function closeDialog(value: boolean | number | string | null) {
   const entry = queue.shift()
   entry?.resolve(value)
 }

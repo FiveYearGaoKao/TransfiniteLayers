@@ -2,7 +2,7 @@
 import Decimal from 'break_eternity.js'
 import { player } from '@/data/player'
 import { addValue, localSave } from '@/save/save'
-import { updateLayers } from '@/logic/update'
+import { updateLayers, applyChallengePenalties } from '@/logic/update'
 import { updateAutomations } from '@/logic/automations'
 import { getMetaLayers } from '@/meta/registry'
 import { updateAchievements } from '@/logic/achievements'
@@ -28,13 +28,16 @@ export function autoSaveLoop() {
     addLog('info', '游戏已保存')
   }
 }
-/**游戏循环，dt以秒为单位 */
+/**游戏循环，dt以秒为单位
+ * 一帧内顺序(全局三段式):所有层生产→元层tick→所有层自动化→挑战C5等每帧惩罚→成就检查
+ */
 function gameLoop(dt: Decimal) {
   dt = dt.mul(getPsdSpeed())
   addValue('totalTime', dt)
   updateLayers(dt)
   for (const meta of getMetaLayers()) meta.onTick(dt)
   updateAutomations(dt)
+  applyChallengePenalties(dt)
   updateAchievements()
 }
 /**游戏暂停和恢复 */

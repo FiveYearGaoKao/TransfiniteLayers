@@ -106,7 +106,7 @@ export interface AutomationDef<T extends AutoConfig = AutoConfig> {
 }
 /**创建默认的自动购买配置 */
 export function defaultAutoBuy(): AutoBuyConfig {
-  return { enabled: false, priority: 1, order: 'asc', percent: 10, buyAmount: 'one', perItem: {} }
+  return { enabled: false, priority: 1, order: 'asc', percent: 50, buyAmount: 'one', perItem: {} }
 }
 /**创建默认的自动重置配置 */
 export function defaultAutoReset(): AutoResetConfig {

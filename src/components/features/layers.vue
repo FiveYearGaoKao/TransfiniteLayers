@@ -1,45 +1,21 @@
 <script setup lang="ts">
 import { format, formatWhole } from '@/tools/format'
 import { getLayer, getLayerName, dimensionAmount, prevLayer } from '@/access'
-import { getLayerIndex, getLayerOrder, isLayer0, shiftLayer } from '@/tools/ordinal'
+import { getLayerOrder, isLayer0 } from '@/tools/ordinal'
 import { dimensionCost, dimensionExponent, dimensionMultiplier } from '@/compute/dimensions'
 import { getBuyables, isUnlocked as isBuyableUnlocked } from '@/compute/buyables'
 import { getUpgrades, isUnlocked as isUpgradeUnlocked } from '@/compute/upgrades'
 import { energyBonus } from '@/compute/energy'
 import { buyDimension, canAfford } from '@/logic/purchase'
-import { dimsAutoUnlocked, isAutoItem, toggleAutoItem } from '@/logic/automations'
+import { dimsAutoUnlocked, isAutoItem, resetAutoEnabled, resetAutoUnlocked, toggleAutoItem, toggleResetAuto } from '@/logic/automations'
 import { canReset, resetGain } from '@/compute/prestige'
-import { doReset } from '@/logic/reset'
+import { resetLayerConfirm, resetRunConfirm } from '@/uiActions'
+import { isChallengeActive } from '@/access'
 import { player } from '@/data/player'
-import { openConfirm } from '@/dialog'
-import { settings } from '@/settings'
 import { computed } from 'vue'
 import BuyableItem from './buyableItem.vue'
 import UpgradeItem from './upgradeItem.vue'
-interface layerName {
-  pos: number[]
-  name: string
-  selected: boolean
-}
-/**层级表显示的所有层级 */
-const layerList = computed(() => {
-  const res: layerName[][] = []
-  for (let i = player.layerDepth - 1; i >= 0; --i) {
-    const layerRow: layerName[] = []
-    for (let j = 0; j <= player.base; ++j) {
-      const k = j < player.base ? j : -1
-      const pos = shiftLayer(player.layerSubtab, i, k)
-      layerRow.push({
-        pos: pos,
-        name: getLayerName(pos, i),
-        selected: k == getLayerIndex(player.layerSubtab, i),
-      })
-    }
-    res.push(layerRow)
-  }
-  //console.log('layerList Updated')
-  return res
-})
+import LayerSelect from './layerSelect.vue'
 /**当前选择的层级 */
 const selectedLayer = computed(() => {
   return getLayer(player.layerSubtab)
@@ -58,40 +34,39 @@ const upgradeList = computed(() =>
     isUpgradeUnlocked(player.layerSubtab, u.id),
   ),
 )
-/**点击晋升按钮:按设置决定是否二次确认 */
-async function doResetConfirm() {
-  const pos = player.layerSubtab
-  const confirmed =
-    !settings.resetConfirm ||
-    (await openConfirm({
-      title: '重置确认',
-      text: `晋升并获得 ${formatWhole(resetGain(pos))} ${getLayerName(pos)}点数?\n这将重置下层进度。`,
-      confirmText: '确认重置',
-      cancelText: '取消',
-    }))
-  if (confirmed) doReset(pos)
-}
+/**是否显示"放弃本轮"(挑战4激活且当前层不是临时层,临时层重置会无条件解锁新层级) */
+const showResetRun = computed(
+  () => isChallengeActive('c4') && !player.layerSubtab.includes(-1),
+)
 </script>
 <template>
   <div id="layers" style="height: 100%">
-    <div class="subtabRow" v-for="(i, rowIndex) in layerList" :key="rowIndex">
-      <template v-for="(j, colIndex) in i" :key="colIndex">
-        <button
-          :class="{ subTab: true, selected: j.selected }"
-          v-if="getLayer(j.pos)"
-          @click="player.layerSubtab = j.pos"
-        >
-          {{ j.name }}
-        </button>
-      </template>
+    <LayerSelect v-model="player.layerSubtab" />
+    <div class="prestigeRow">
+      <button
+        v-if="!isLayer0(player.layerSubtab)"
+        :class="{ prestige: true, affordable: canReset(player.layerSubtab) }"
+        @click="resetLayerConfirm()"
+      >
+        +{{ formatWhole(resetGain(player.layerSubtab)) }} {{ getLayerName(player.layerSubtab) }}点数
+      </button>
+      <button
+        v-if="!isLayer0(player.layerSubtab) && resetAutoUnlocked(player.layerSubtab)"
+        :class="['toggle', resetAutoEnabled(player.layerSubtab) ? 'toggle-on' : 'toggle-off']"
+        title="本层自动重置开关(需购买升级:自动重置)"
+        @click="toggleResetAuto(player.layerSubtab)"
+      >
+        自动:{{ resetAutoEnabled(player.layerSubtab) ? '开' : '关' }}
+      </button>
+      <button
+        v-if="showResetRun"
+        class="toggle toggle-off"
+        title="挑战4后悔:不获得资源强制重置本层及下层,清除已购以恢复价格"
+        @click="resetRunConfirm()"
+      >
+        放弃本轮
+      </button>
     </div>
-    <button
-      :class="{ prestige: true, affordable: canReset(player.layerSubtab) }"
-      v-if="!isLayer0(player.layerSubtab)"
-      @click="doResetConfirm()"
-    >
-      +{{ formatWhole(resetGain(player.layerSubtab)) }} {{ getLayerName(player.layerSubtab) }}点数
-    </button>
 
     <span v-if="!isLayer0(player.layerSubtab)" class="text"
       >你有<span class="text-highlight">{{ formatWhole(selectedLayer?.points ?? 0) }} </span
@@ -144,20 +119,26 @@ async function doResetConfirm() {
       </template>
     </div>
     <div id="upgrades">
-      <UpgradeItem
-        v-for="upgrade in upgradeList"
-        :key="upgrade.id"
-        :pos="player.layerSubtab"
-        :def="upgrade"
-      />
+      <span class="sectionTitle">升级</span>
+      <div class="upgradeRow">
+        <UpgradeItem
+          v-for="upgrade in upgradeList"
+          :key="upgrade.id"
+          :pos="player.layerSubtab"
+          :def="upgrade"
+        />
+      </div>
     </div>
     <div id="buyables">
-      <BuyableItem
-        v-for="buyable in buyableList"
-        :key="buyable.id"
-        :pos="player.layerSubtab"
-        :def="buyable"
-      />
+      <span class="sectionTitle">可购买</span>
+      <div class="buyableRow">
+        <BuyableItem
+          v-for="buyable in buyableList"
+          :key="buyable.id"
+          :pos="player.layerSubtab"
+          :def="buyable"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -171,6 +152,12 @@ div#layers {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+div.prestigeRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 div#dimensionTable {
   display: grid;
@@ -204,18 +191,39 @@ div#dimensionTable {
 /*可购买行*/
 div#buyables {
   display: flex;
-  flex-direction: row;
-  gap: 10px;
-  margin-top: 10px;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
 }
-/*升级区*/
-div#upgrades {
+div.buyableRow {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
-  margin-top: 10px;
+}
+/*升级区*/
+div#upgrades {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+div.upgradeRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+span.sectionTitle {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--dim);
+  border-bottom: 1px solid var(--faint);
+  padding-bottom: 2px;
 }
 /*窄屏:统一表格列宽自适应，所有行列宽一致*/
 @media (max-width: 700px) {

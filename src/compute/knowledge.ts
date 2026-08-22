@@ -2,8 +2,14 @@
 //知识升级可多次购买(有数量上限),分为QoL/加成等类别,价格与显示均由声明驱动
 import Decimal from 'break_eternity.js'
 import { player } from '@/data/player'
-import { getPoints } from '@/access'
+import {
+  getLayerDepth,
+  getHighestActiveLayer,
+  getUnlockedNormalAchievementCount,
+  hasAchievement,
+} from '@/access'
 import { temp } from '@/temp'
+import { format } from '@/tools/format'
 import {
   calculate,
   effectText,
@@ -42,7 +48,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     category: 'time',
     description: '解锁离线时间和时间扭曲',
     maxAmount: new Decimal(1),
-    cost: () => new Decimal(10),
+    cost: () => new Decimal(5),
     require: [],
     canBuy: () => true,
   },
@@ -50,7 +56,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     id: 'time-store',
     name: '时间存储',
     category: 'time',
-    description: '允许储存离线时间(选项页可切换)',
+    description: '允许储存离线时间',
     maxAmount: new Decimal(1),
     cost: () => new Decimal(10),
     require: [['time-offline', new Decimal(1)]],
@@ -62,7 +68,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     category: 'time',
     description: '离线时间可用于加速(稳定提升全局速度)',
     maxAmount: new Decimal(1),
-    cost: () => new Decimal(4),
+    cost: () => new Decimal(10),
     require: [['time-store', new Decimal(1)]],
     canBuy: () => true,
   },
@@ -72,7 +78,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     category: 'time',
     description: '允许主动暂停游戏,暂停期间时间储存为离线时间',
     maxAmount: new Decimal(1),
-    cost: () => new Decimal(2),
+    cost: () => new Decimal(5),
     require: [['time-store', new Decimal(1)]],
     canBuy: () => true,
   },
@@ -82,7 +88,7 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     category: 'time',
     description: '解锁工具栏的时间流逝1帧按钮',
     maxAmount: new Decimal(1),
-    cost: () => new Decimal(1),
+    cost: () => new Decimal(20),
     require: [['time-pause', new Decimal(1)]],
     canBuy: () => true,
   },
@@ -93,46 +99,136 @@ export const KNOWLEDGE_UPGRADES: KnowledgeUpgradeDef[] = [
     description: '加速倍率升级,每级开放更高倍率(x5/x10/x60)',
     maxAmount: new Decimal(3),
     cost(n: Decimal): Decimal {
-      return new Decimal(10).pow(n)
+      return new Decimal(10).pow(n.add(1))
     },
     require: [['time-boost', new Decimal(1)]],
     canBuy: () => true,
   },
   {
-    id: 'bonus-points',
-    name: '点数增幅',
+    id: 'bonus-achievement',
+    name: '成就之力',
     category: 'bonus',
-    description: '所有点数获取x1.5^数量,效果叠乘',
-    maxAmount: new Decimal(10),
+    description: '每个已解锁的普通(非隐藏)成就使所有维度倍率x1.05,效果叠乘',
+    maxAmount: new Decimal(1),
+    cost: () => new Decimal(10),
+    require: [],
+    canBuy: () => getUnlockedNormalAchievementCount() >= 10,
+    effect: {
+      target: 'dimensionMult',
+      type: 'mul',
+      value: () => new Decimal(1.05).pow(getUnlockedNormalAchievementCount()),
+      text: '所有维度倍率 x{value}',
+    },
+  },
+  {
+    id: 'boost-production',
+    name: '生产增效',
+    category: 'bonus',
+    description: '所有维度生产+10%每级,效果叠乘',
+    maxAmount: new Decimal(100),
     cost(n: Decimal): Decimal {
-      return new Decimal(10).mul(n.add(1)).pow(2).floor()
+      return new Decimal(5).add(new Decimal(5).mul(n)).floor()
     },
     require: [],
     canBuy: () => true,
     effect: {
+      target: 'production',
+      type: 'mul',
+      value: () => new Decimal(1.1).pow(knowledgeAmount('boost-production')),
+      text: '所有维度生产 x{value}',
+    },
+  },
+  {
+    id: 'depth-points',
+    name: '深度加成',
+    category: 'bonus',
+    description: '若当前最高层级为m,则层级k的点数获取x2^(m-k)',
+    maxAmount: new Decimal(1),
+    cost: () => new Decimal(100),
+    require: [],
+    canBuy: () => hasAchievement('a34'),
+    effect: {
       target: 'pointsGain',
       type: 'mul',
-      value: () => new Decimal(1.5).pow(knowledgeAmount('bonus-points')),
+      value: (ctx) => {
+        const m = getLayerDepth(getHighestActiveLayer() ?? [0])
+        const k = getLayerDepth(ctx.pos)
+        return new Decimal(2).pow(Math.max(0, m - k))
+      },
       text: '点数获取 x{value}',
     },
   },
   {
-    id: 'bonus-energy',
-    name: '能量共振',
-    category: 'bonus',
-    description: '能量加成指数+0.01x数量',
-    maxAmount: new Decimal(5),
+    id: 'command-checkin',
+    name: '指令系统',
+    category: 'command',
+    description: '解锁指令系统和签到指令/checkin',
+    maxAmount: new Decimal(1),
+    cost: () => new Decimal(20),
+    require: [['time-offline', new Decimal(1)]],
+    canBuy: () => true,
+  },
+  {
+    id: 'command-quiz',
+    name: '答题',
+    category: 'command',
+    description: '解锁答题指令/quiz',
+    maxAmount: new Decimal(1),
+    cost: () => new Decimal(20),
+    require: [['command-checkin', new Decimal(1)]],
+    canBuy: () => true,
+  },
+  {
+    id: 'quiz-accel',
+    name: '答题加速',
+    category: 'command',
+    description: '答题冷却时间x0.9每级,效果叠乘',
+    maxAmount: new Decimal(20),
     cost(n: Decimal): Decimal {
-      return new Decimal(50).mul(n.add(1)).floor()
+      return new Decimal(20).add(new Decimal(10).mul(n)).floor()
     },
-    require: [['bonus-points', new Decimal(3)]],
-    canBuy: () => getPoints([0]).gte(1e100),
-    effect: {
-      target: 'energy:base',
-      type: 'add',
-      value: () => knowledgeAmount('bonus-energy').mul(0.01),
-      text: '能量加成指数+{value}',
+    require: [['command-quiz', new Decimal(1)]],
+    canBuy: () => true,
+    effectText(): string {
+      return `答题冷却 x${format(new Decimal(0.9).pow(knowledgeAmount('quiz-accel')))}`
     },
+  },
+  {
+    id: 'quiz-difficulty',
+    name: '博学',
+    category: 'command',
+    description: '答题奖励知识x1.5每级,效果叠乘,并提高题目难度',
+    maxAmount: new Decimal(15),
+    cost(n: Decimal): Decimal {
+      return new Decimal(50).mul(new Decimal(2).pow(n)).floor()
+    },
+    require: [['quiz-accel', new Decimal(5)]],
+    canBuy: () => true,
+    effectText(): string {
+      return `答题奖励 x${format(new Decimal(1.5).pow(knowledgeAmount('quiz-difficulty')))}`
+    },
+  },
+  {
+    id: 'auto-batch',
+    name: '自动批量',
+    category: 'auto',
+    description: '解锁自动化的"买最大"模式,每帧至多购买2^等级个(需成就:解放双手)',
+    maxAmount: new Decimal(10),
+    cost(n: Decimal): Decimal {
+      return new Decimal(5).mul(new Decimal(2).pow(n)).floor()
+    },
+    require: [],
+    canBuy: () => hasAchievement('a21'),
+  },
+  {
+    id: 'auto-upgrade',
+    name: '升级自动化',
+    category: 'auto',
+    description: '解锁自动购买升级机制',
+    maxAmount: new Decimal(1),
+    cost: () => new Decimal(50),
+    require: [['auto-batch', new Decimal(1)]],
+    canBuy: () => true,
   },
 ]
 
@@ -235,6 +331,16 @@ registerEffect({
   value: () => player.boostSpeed,
   isActive: () => player.boostSpeed.gt(1),
   text: '全局速度 x{value}',
+})
+
+//答题冷却经加成管道注册,可在统计页查看明细
+registerEffect({
+  id: 'quiz-cooldown',
+  name: '答题冷却',
+  target: 'quizCooldown',
+  type: 'mul',
+  value: () => new Decimal(0.9).pow(knowledgeAmount('quiz-accel').toNumber()),
+  text: '答题冷却 x{value}',
 })
 
 /**当前全局速度(调试初始值经加成管道后的结果) */

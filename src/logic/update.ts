@@ -2,16 +2,15 @@
 import Decimal from 'break_eternity.js'
 import { player } from '@/data/player'
 import { type LayerId } from '@/data/types'
-import { addAmount, getLayer, getBase, highestActiveLayer, isActive } from '@/access'
+import { addAmount, getLayer, getBase, highestActiveLayer, isActive, prevLayer } from '@/access'
 import { isLayer0, posArray, shiftLayer } from '@/tools/ordinal'
 import { productionPerSecond } from '@/compute/dimensions'
-import { resetGain } from '@/compute/prestige'
 import { hasUpgrade } from '@/compute/upgrades'
 import { initializeLayer } from '@/data/types'
 import { temp } from '@/temp'
 import { applyChallengeEffects } from './challenges'
 
-/**更新指定的层级 */
+/**更新指定的层级(生产阶段) */
 function updateLayer(pos: LayerId, dt: Decimal) {
   const layer = getLayer(pos)
   if (!layer) return
@@ -24,14 +23,18 @@ function updateLayer(pos: LayerId, dt: Decimal) {
   }
   //第1维度生产点数或能量
   const dim1Production = productionPerSecond(pos, 0).mul(dt)
-  if (isLayer0(pos)) layer.points = layer.points.add(dim1Production)
-  else layer.energy = layer.energy.add(dim1Production)
+  if (isLayer0(pos)) {
+    //层级0生产点数:计入层级0的totalPoints(会被层级1重置),并累计到player.totalPoints(永不清除)
+    layer.points = layer.points.add(dim1Production)
+    layer.totalPoints = layer.totalPoints.add(dim1Production)
+    player.totalPoints = player.totalPoints.add(dim1Production)
+  } else {
+    layer.energy = layer.energy.add(dim1Production)
+  }
   //累计本次重置经过的时间(用于自动重置)
   layer.resetTime = layer.resetTime.add(dt)
-  //应用挑战的动态效果(如每帧损失)
-  applyChallengeEffects(layer, pos, dt)
 }
-/**更新所有层级 */
+/**更新所有层级(第一阶段:生产,逆序先算高层) */
 export function updateLayers(dt: Decimal) {
   for (const i of Object.keys(player.layers).toReversed()) {
     updateLayer(posArray(i), dt)
@@ -40,16 +43,28 @@ export function updateLayers(dt: Decimal) {
   updateUpgradeEffects(dt)
 }
 
-/**应用升级随时间产生的效果(如软重置每秒获得点数) */
+/**所有层级生产完成后统一应用挑战的动态效果(第三阶段:C5每帧损失等) */
+export function applyChallengePenalties(dt: Decimal) {
+  for (const key of Object.keys(player.layers)) {
+    const pos = posArray(key)
+    const L = getLayer(pos)
+    if (L && L.active) applyChallengeEffects(L, pos, dt)
+  }
+}
+
+/**应用升级随时间产生的效果(软重置:若层级k购买u9,则层级k-1每秒获得等同于其bestPoints的点数) */
 function updateUpgradeEffects(dt: Decimal) {
   for (const key of Object.keys(player.layers)) {
     const pos = posArray(key)
     if (!hasUpgrade(pos, 9)) continue
     const L = getLayer(pos)
     if (!L || !L.active) continue
-    const gain = resetGain(pos).mul(dt)
-    L.points = L.points.add(gain)
-    L.totalPoints = L.totalPoints.add(gain)
+    const lower = prevLayer(pos)
+    const LL = getLayer(lower)
+    if (!LL || !LL.active) continue
+    const gain = LL.bestPoints.mul(dt)
+    LL.points = LL.points.add(gain)
+    LL.totalPoints = LL.totalPoints.add(gain)
   }
 }
 
