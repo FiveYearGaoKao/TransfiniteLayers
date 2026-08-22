@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Decimal from 'break_eternity.js'
 import { format, formatTime, formatWhole } from '@/tools/format'
 import { player } from '@/data/player'
@@ -7,7 +7,9 @@ import type { LayerId } from '@/data/types'
 import { registerSubtabCycler, unregisterSubtabCycler } from '@/navigation'
 import { getActiveLayers, getLayerName } from '@/access'
 import { NEWS_COUNT } from '@/news'
+import { buildGlobalNodes, buildLayerNodes, type StatNode } from '@/compute/statistics'
 import LayerSelect from './layerSelect.vue'
+import StatTree from './statTree.vue'
 import {
   importSaveString,
   exportSaveString,
@@ -18,15 +20,8 @@ import { temp } from '@/temp'
 import { type logType, addLog } from '@/log'
 import { doHardReset, doLoad, doSave } from '@/saveActions'
 import { unlockAllUi } from '@/logic/knowledge'
-import { gameVersion, gameName, DIMENSION_COUNT } from '@/data/constants'
+import { gameVersion, gameName } from '@/data/constants'
 import { CHANGELOG } from '@/data/changelog'
-import {
-  effectBreakdown,
-  slotBreakdown,
-  type EffectSlot,
-  type EffectType,
-  type RegisteredEffect,
-} from '@/compute/effects'
 import { hasKnowledge } from '@/compute/knowledge'
 import { RESOURCE_ITEMS } from '@/resourceRegistry'
 
@@ -163,114 +158,10 @@ function setDebugSpeed(v: string) {
   const d = new Decimal(v)
   if (!Decimal.isNaN(d) && d.gt(0)) temp.debugSpeed = d
 }
-/**统计页:数值点定义 */
-interface StatTargetDef {
-  target: string
-  /**是否按维度区分为多行 */
-  perDim: boolean
-  /**总值前显示的符号 */
-  sign: string
-  label: (id: number) => string
-  /**计算时的初始值(缺省1) */
-  base?: () => Decimal
-}
-/**层级相关的数值点(受层级选择影响) */
-const layerStatDefs: StatTargetDef[] = [
-  { target: 'dimensionMult', perDim: true, sign: 'x', label: (i: number) => `维度${i + 1}乘数` },
-  { target: 'dimensionExponent', perDim: true, sign: '', label: (i: number) => `维度${i + 1}指数` },
-  { target: 'pointsGain', perDim: false, sign: 'x', label: () => '点数获取' },
-  { target: 'resetGain', perDim: false, sign: 'x', label: () => '重置收益' },
-]
-/**层级无关的全局数值点(独立于层级选择) */
-const globalStatDefs: StatTargetDef[] = [
-  { target: 'psdSpeed', perDim: false, sign: 'x', label: () => '全局速度' },
-  {
-    target: 'quizCooldown',
-    perDim: false,
-    sign: '',
-    base: () => new Decimal(3600),
-    label: () => '答题冷却(秒)',
-  },
-]
-/**效果作用方式的符号 */
-function opSign(type: EffectType): string {
-  return type == 'mul' ? 'x' : type == 'add' ? '+' : type == 'exp' ? '^' : ''
-}
-/**统计明细的可折叠树节点 */
-interface StatNode {
-  key: string
-  label: string
-  sign: string
-  value: Decimal
-  children: StatNode[]
-}
-/**效果来源明细转节点列表 */
-function statNodes(
-  parts: { e: RegisteredEffect; value: Decimal }[],
-  parentKey: string,
-  pos: LayerId,
-  id: number,
-): StatNode[] {
-  return parts.map((p) => {
-    const key = `${parentKey}:${p.e.id}`
-    const children: StatNode[] = []
-    if (p.e.base) children.push(statSlot(p.e.base, '底数', `${key}:base`, pos, id))
-    if (p.e.amount) children.push(statSlot(p.e.amount, '数量', `${key}:amount`, pos, id))
-    return { key, label: p.e.name ?? p.e.id, sign: opSign(p.e.type), value: p.value, children }
-  })
-}
-/**槽位节点:初始值 + 各修饰来源 */
-function statSlot(
-  slot: EffectSlot,
-  label: string,
-  key: string,
-  pos: LayerId,
-  id: number,
-): StatNode {
-  const ctx = { pos, id }
-  const b = slotBreakdown(slot, ctx)
-  return {
-    key,
-    label,
-    sign: '',
-    value: b.total,
-    children: [
-      {
-        key: `${key}:init`,
-        label: '初始值',
-        sign: '',
-        value: new Decimal(slot.init(ctx)),
-        children: [],
-      },
-      ...statNodes(b.parts, key, pos, id),
-    ],
-  }
-}
-/**根节点 */
-function statRoot(sd: StatTargetDef, id: number, pos: LayerId): StatNode {
-  const b = effectBreakdown(sd.target, { pos, id }, sd.base ? sd.base() : new Decimal(1))
-  const key = `${sd.target}:${id}`
-  return {
-    key,
-    label: sd.label(id),
-    sign: sd.sign,
-    value: b.total,
-    children: statNodes(b.parts, key, pos, id),
-  }
-}
-/**当前层级的根节点列表 */
-function statRoots(defs: StatTargetDef[], pos: LayerId): StatNode[] {
-  const nodes: StatNode[] = []
-  for (const sd of defs) {
-    const ids = sd.perDim ? Array.from({ length: DIMENSION_COUNT }, (_, i) => i) : [0]
-    for (const id of ids) nodes.push(statRoot(sd, id, pos))
-  }
-  return nodes
-}
-/**当前所选层级的加成树 */
-const layerNodes = computed<StatNode[]>(() => statRoots(layerStatDefs, statLayer.value))
+/**当前所选层级的加成树(每维度一棵产量树) */
+const layerNodes = computed<StatNode[]>(() => buildLayerNodes(statLayer.value))
 /**全局(层级无关)加成树 */
-const globalNodes = computed<StatNode[]>(() => statRoots(globalStatDefs, [0]))
+const globalNodes = computed<StatNode[]>(() => buildGlobalNodes())
 /**统计页查看的层级(缺省跟随当前层,可在统计页内切换) */
 const statLayer = ref<LayerId>([0])
 watch(
@@ -278,43 +169,6 @@ watch(
   (v) => (statLayer.value = v),
   { immediate: true },
 )
-/**已展开的节点key */
-const expanded = reactive(new Set<string>())
-/**切换某节点的展开状态 */
-function toggle(key: string) {
-  if (expanded.has(key)) expanded.delete(key)
-  else expanded.add(key)
-}
-/**展开状态下的拍平行 */
-interface FlatRow {
-  key: string
-  label: string
-  sign: string
-  value: Decimal
-  depth: number
-  hasChildren: boolean
-}
-/**把节点树按展开状态拍平成行列表 */
-function flatten(nodes: StatNode[]): FlatRow[] {
-  const out: FlatRow[] = []
-  const walk = (list: StatNode[], depth: number) => {
-    for (const n of list) {
-      out.push({
-        key: n.key,
-        label: n.label,
-        sign: n.sign,
-        value: n.value,
-        depth,
-        hasChildren: n.children.length > 0,
-      })
-      if (expanded.has(n.key)) walk(n.children, depth + 1)
-    }
-  }
-  walk(nodes, 0)
-  return out
-}
-const layerFlatTree = computed<FlatRow[]>(() => flatten(layerNodes.value))
-const globalFlatTree = computed<FlatRow[]>(() => flatten(globalNodes.value))
 
 //------资源明细页------
 /**统计页内部子标签 */
@@ -558,43 +412,11 @@ const activeLayers = computed(() =>
         <div class="section">
           <span class="text bold">层级加成 · {{ getLayerName(statLayer) }}</span>
           <LayerSelect v-model="statLayer" />
-          <div class="statTree">
-            <div
-              v-for="row in layerFlatTree"
-              :key="row.key"
-              class="statRow"
-              :class="{ clickable: row.hasChildren }"
-              :style="{ paddingLeft: row.depth * 18 + 'px' }"
-              @click="row.hasChildren && toggle(row.key)"
-            >
-              <span class="text">
-                <span class="statArrow">{{
-                  row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·'
-                }}</span
-                >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
-              </span>
-            </div>
-          </div>
+          <StatTree :nodes="layerNodes" />
         </div>
         <div class="section">
           <span class="text bold">全局加成(层级无关)</span>
-          <div class="statTree">
-            <div
-              v-for="row in globalFlatTree"
-              :key="row.key"
-              class="statRow"
-              :class="{ clickable: row.hasChildren }"
-              :style="{ paddingLeft: row.depth * 18 + 'px' }"
-              @click="row.hasChildren && toggle(row.key)"
-            >
-              <span class="text">
-                <span class="statArrow">{{
-                  row.hasChildren ? (expanded.has(row.key) ? '▼' : '▶') : '·'
-                }}</span
-                >{{ row.label }} {{ row.sign }}{{ format(row.value) }}
-              </span>
-            </div>
-          </div>
+          <StatTree :nodes="globalNodes" />
         </div>
       </div>
 
@@ -653,30 +475,6 @@ textarea {
 input {
   width: 120px;
   padding: 4px;
-}
-/*加成明细树*/
-div.statTree {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 260px;
-}
-div.statRow {
-  cursor: default;
-  width: 100%;
-  padding: 1px 4px;
-  transition: all 200ms;
-}
-div.statRow.clickable {
-  cursor: pointer;
-}
-div.statRow.clickable:hover {
-  background-color: var(--hover);
-}
-span.statArrow {
-  display: inline-block;
-  width: 14px;
-  color: var(--dim);
 }
 span.hotkey {
   min-width: 96px;

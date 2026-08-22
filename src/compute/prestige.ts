@@ -26,11 +26,14 @@ export const PRESTIGE: prestigeFormula[] = [
     },
   },
 ]
+/**重置收益的基础公式值(不含点数获取加成),统计页"点数获取"树的初始值用 */
+export function resetGainBase(layer: LayerId): Decimal {
+  const order = Math.min(getLayerOrder(layer), PRESTIGE.length - 1)
+  return PRESTIGE[order]?.resetGain(layer) || new Decimal(0)
+}
 /**重置资源的获取量 */
 export function resetGain(layer: LayerId): Decimal {
-  const order = Math.min(getLayerOrder(layer), PRESTIGE.length - 1)
-  let value = PRESTIGE[order]?.resetGain(layer) || new Decimal(0)
-  value = calculate('resetGain', { pos: layer, id: 0 }, value)
+  let value = resetGainBase(layer)
   //非层级0的层的重置收益即点数获取，应用点数获取类的加成
   if (!isLayer0(layer)) value = calculate('pointsGain', { pos: layer, id: 0 }, value)
   return value.floor()

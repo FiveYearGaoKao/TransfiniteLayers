@@ -4,9 +4,25 @@ import type { LayerId } from '@/data/types'
 import { c4BoughtOffset, dimensionAmount, getBase } from '@/access'
 import { getLayerOrder, isLayer0 } from '@/tools/ordinal'
 import { softCapValue } from '@/tools/softCap'
-import { calculate } from './effects'
+import { calculate, registerEffect } from './effects'
 import { softCap } from './softCap'
 import './energy'
+
+/**层级0点数生产软上限:阈值与强度(产量超过阈值后增长变缓,减缓逼近1.79e308终局) */
+export const LAYER0_CAP_THRESHOLD = 1e300
+export const LAYER0_CAP_POWER = 0.5
+
+//层级0维度1的产量软上限注册为pointsGain目标上的custom效果(custom优先级最高,天然在其它点数获取加成之后生效)
+registerEffect({
+  id: 'layer0-softcap',
+  name: '点数生产软上限',
+  target: 'pointsGain',
+  type: 'custom',
+  value: (_ctx, _base, _amount, current) =>
+    softCapValue(current ?? new Decimal(1), new Decimal(LAYER0_CAP_THRESHOLD), LAYER0_CAP_POWER),
+  isActive: (ctx) => isLayer0(ctx.pos) && ctx.id == 0,
+  text: '软上限 x{value}',
+})
 
 interface dimensionInfo {
   cost: (layer: LayerId, id: number, n: Decimal) => Decimal
@@ -52,11 +68,9 @@ export function productionPerSecond(layer: LayerId, id: number): Decimal {
     .mul(dimensionMultiplier(layer, id))
     .pow(dimensionExponent(layer, id))
   value = calculate('production', { pos: layer, id }, value)
-  //层级0的维度1产量即点数获取，应用点数获取类的加成
+  //层级0的维度1产量即点数获取,统一在pointsGain目标应用(含软上限custom效果)
   if (isLayer0(layer) && id == 0) {
     value = calculate('pointsGain', { pos: layer, id }, value)
-    //层级0点数生产软上限:产量超过1e300后增长变缓(power<1),减缓逼近1.79e308的终局
-    value = softCapValue(value, new Decimal(1e300), 0.5)
   }
   return value
 }

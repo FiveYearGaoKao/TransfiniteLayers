@@ -12,7 +12,6 @@ export type EffectTarget =
   | 'dimensionExponent'
   | 'production'
   | 'pointsGain'
-  | 'resetGain'
   | 'upgradeCost'
   | 'psdSpeed'
 

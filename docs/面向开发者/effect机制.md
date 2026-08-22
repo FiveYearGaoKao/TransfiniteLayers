@@ -21,10 +21,11 @@
 | `dimensionMult` | 维度乘数 | `dimensions.dimensionMultiplier` |
 | `dimensionExponent` | 维度指数 | `dimensions.dimensionExponent` |
 | `production` | 维度产量 | `dimensions.productionPerSecond` |
-| `pointsGain` | 点数获取 | `dimensions`/`prestige`(层0维度1产量、重置收益) |
-| `resetGain` | 重置收益 | `prestige.resetGain` |
+| `pointsGain` | 点数获取(含层0软上限) | `dimensions`(层0维度1产量)/`prestige`(重置收益) |
 | `upgradeCost` | 升级价格 | (预留) |
 | `psdSpeed` | 全局速度 | `knowledge.getPsdSpeed` |
+
+> 注:`resetGain` 目标已移除,所有加成只作用于 `pointsGain`。层级0维度1的产量软上限(`layer0-softcap`)注册为 `pointsGain` 上的 `custom` 效果——`custom` 优先级最高,天然在所有乘法加成之后生效。
 
 除主数值点外,还有**子目标(槽位)**用于修饰公式参数:
 `energy:base`(能量指数)、`u1:base`(点数作用指数)、`b11:base`/`b11:amount`(加速器底数/等级)、
@@ -75,6 +76,12 @@ interface EffectSlot {
   - `effectById(id)` / `effectValueById(id, ctx)` — 按 id 引用某条加成的当前数值(未注册返回 1),如能量系统内部即 `effectValueById('energy', ...)`;
   - `effectBreakdown(target, ctx, base)` / `slotBreakdown(slot, ctx)` — 统计明细(总效果+各生效来源),供统计页;
   - `effectText(e, ctx)` / `renderText(template, e, ctx)` — 描述模板(`{value}{base}{basePercent}{amount}`)。
+
+### 统计页的加成树
+
+- 构建逻辑在 `compute/statistics.ts`(只读),渲染组件为 `components/features/statTree.vue`(props: nodes, 内部管理展开)。
+- **层级加成**:每维度一棵"产量树"——根为 `productionPerSecond`,子节点依次为`初始值(维度总数)`→`维度乘数`→`维度指数`→`最终加成`(各 production 效果,用效果名);另有一棵统一的**"点数获取"树**(`+` 开头):初始值(层0=维度1原始产量、层1+=`resetGainBase`)+ 各 pointsGain 效果 + 软上限实际缩减比例。
+- **全局加成**:`psdSpeed`、`quizCooldown`;初始值非 1 的目标统一显示"初始值"子节点(如答题冷却 3600)。
 
 ## 五、自动注册(注册表模式)
 
